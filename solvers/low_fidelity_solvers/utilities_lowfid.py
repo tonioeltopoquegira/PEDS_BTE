@@ -12,48 +12,6 @@ import jax.lax as lax
 
 #Comments ToDO:
 
-# (2) attenzioni dimensioni e se considero N dimensione della grid o numero di celle (N-1)
-
-@jax.jit
-def flux_kappa_single_batch(diffusivity, T):
-
-    N = T.shape[0]
-    dx, dy = 100 / N, 100/N
-
-    # Attenzione alle dimensioni !! (Dovrei wrapper around l'ultimo)
-
-    Jx = jnp.zeros_like(T)
-    Jx = -diffusivity[:, :-1] * (T[:, 1:] - T[:, :-1]) / dx
-    Jx = jnp.pad(Jx, ((0, 0), (0, 1)), mode='constant', constant_values=0)
-
-    Jy = jnp.zeros_like(T)
-    Jy = -diffusivity[:-1, :] * (T[1:, :] - T[:-1, :]) / dy
-    Jy = jnp.pad(Jy, ((0, 1), (0, 0)), mode='constant', constant_values=0)
-
-    kappa = jnp.sum(Jy[N//2, :])
-
-   
-    return kappa, T, Jx, Jy
-
-@jax.jit
-def flux_kappa(diffusivity, T, display=False):
-
-    N = T.shape[1]
-    dx, dy = 100 / N, 100 / N
-
-    # Initialize arrays for fluxes
-    Jy = jnp.zeros_like(T)
-    
-    Jy = -diffusivity[:-1, :] * (T[1:, :] - T[:-1, :]) / dy
-    Jy = jnp.pad(Jy, ((0, 1), (0, 0)), mode='constant', constant_values=0)
-
-    
-    kappa = jnp.sum(Jy[N // 2, :], axis=-1)
-    
-    return kappa
-
-
-        
 
 def plot_temperature(base_conductivities, Temperatures):
 
@@ -107,16 +65,17 @@ def plot_temperature(base_conductivities, Temperatures):
 
 import time
 
-def test_solver(solver, num_obs, jax=False):
+def test_solver(solver, num_obs, jax_inputs=False):
 
-    if jax:
+    if jax_inputs:
         full_data = jnp.load("data/highfidelity/high_fidelity_10012_100steps.npz", allow_pickle=True)
 
         pores = jnp.asarray(full_data['pores'], dtype=jnp.float32)
         kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32)
         base_conductivities = jnp.asarray(full_data['conductivity'], dtype=jnp.float32)
 
-        """pores0 = jnp.zeros((1,5,5))
+        """
+        pores0 = jnp.zeros((1,5,5))
         kappas0 = jnp.array([150.0])
         base0 = jnp.ones((100,100))*150.0
 
@@ -128,7 +87,9 @@ def test_solver(solver, num_obs, jax=False):
         # Perform forward pass and check for 3
         Temperatures = solver(base_conductivities[:3])
         plot_temperature(base_conductivities, Temperatures)
-"""
+
+        """
+
         # Perform forward and measure speed for num_obs observations
         t = time.time()
         temperatures = solver(base_conductivities[:num_obs])
@@ -145,19 +106,31 @@ def test_solver(solver, num_obs, jax=False):
 
         pores0 = np.zeros((1,5,5))
         kappas0 = 150.0
-        base0 = np.ones((100,100))*150.0
+        base0 = np.ones((1, 100,100))*150.0
 
         # Append the 0 observation as first of the dataset
         pores = np.vstack([pores0, pores])  # Add pores0 at the beginning
         kappas = np.hstack([kappas0, kappas])  # Add kappas0 at the beginning
-        base_conductivities = np.vstack([base0[None, :, :], base_conductivities])  # Add base0 as the first 2D array
+        base_conductivities = np.vstack([base0, base_conductivities])  # Add base0 as the first 2D array
 
         # Perform forward pass and check for 3
         Temperatures, L = solver(base_conductivities[:3]/150.0)
-        plot_temperature(base_conductivities, Temperatures)
+        #plot_temperature(base_conductivities, Temperatures)
 
         # Perform forward and measure speed for num_obs observations
         t = time.time()
-        temperatures = solver(base_conductivities[:num_obs])
+        #temperatures = solver(base_conductivities[:num_obs])
         print(f"Final time: {time.time()-t} after computing {num_obs} observations on step size 100")
+
+        print("Check Gradients")
+        base0 = np.ones((4,100,100))
+        base0[:, 1,1] = 0.0
+        def dummy_loss(base0):
+            x = solver(base0)
+            return jnp.sum(x ** 2)
+
+
+        value, grads = jax.value_and_grad(dummy_loss)(base0)
+
+        print(grads)
 

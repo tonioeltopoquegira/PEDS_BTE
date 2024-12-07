@@ -104,27 +104,30 @@ def fd_diffusion(diffusivity):
 
     L_jax = BCSR.from_scipy_sparse(L)
 
-    return T, L
+    return T, L_jax
 
 
 def fd_fwd(diffusivity):
     T, L = fd_diffusion(diffusivity)
-    return T, (T, L)
+    return T, (T, L, diffusivity)
 
 def fd_bwd(res, grads):
 
-    T, L = res
+    T, L, diffusivity = res
     dLoss_dT = grads
 
-    print(dLoss_dT.shape)
+    L = laplacian(diffusivity)
 
-    #lambd = spsolve(L, dLoss_dT)
+    dLossdT_flatten = dLoss_dT.flatten()
 
-    lambd = cg(L.T, dLoss_dT.T)
+    lambd = spsolve(L.T, dLossdT_flatten.T)
 
-    dL_dK = (lambd.T @ dL_dK) @ T  
+
+    lambd = lambd.reshape(diffusivity.shape)
+
+    #dL_dK = (lambd.T @ dL_dK) @ T  
     
-    return (dL_dK,) 
+    return (lambd,) 
 
 fd_diffusion.defvjp(fd_fwd, fd_bwd)
 
