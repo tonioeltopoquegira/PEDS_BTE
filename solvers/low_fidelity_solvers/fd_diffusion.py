@@ -6,21 +6,20 @@ from jax.experimental.sparse import BCSR
 from jax.scipy.sparse.linalg import cg
 
 
-
-def laplacian(diffusivity, h=1.0):
+def laplacian(conductivity, h=1.0):
     """
     Computes the discrete Laplacian using the Kronecker product.
 
     Args:
-        diffusivity (np.array): (N-1)x(N-1) array with mean diffusivity for every cell of the grid.
+        conductivity (np.array): (N-1)x(N-1) array with mean conductivity for every cell of the grid.
         h (float): Grid spacing.
 
     Returns:
         scipy.sparse.csr_matrix: Sparse Laplacian matrix.
     """
     
-    #N_cells = diffusivity.shape[0]  # Number of cells in the grid
-    batch_size, N_cells, _ = diffusivity.shape 
+    #N_cells = conductivity.shape[0]  # Number of cells in the grid
+    batch_size, N_cells, _ = conductivity.shape 
     N = N_cells + 1  # Number of points (including boundaries)
 
     # Define the step sizes (dx1 for forward and dx2 for backward)
@@ -63,30 +62,32 @@ def laplacian(diffusivity, h=1.0):
     # repeat L batch_size times to have a final sparse array of size (batch_size, L.shape[0], L.shape[1])
     L_batch = sp.block_diag([L] * batch_size, format="csr")
 
-    diffusivity[:, -1, :] = 1.0
-    diffusivity[:, 0,:] = 1.0
+    """conductivity[:, -1, :] = 1.0
+    conductivity[:, 0,:] = 1.0"""
+    conductivity_new = conductivity.at[:, -1, :].set(1.0)
+    conductivity_new = conductivity_new.at[:,0,:].set(1.0)
     # Flatten
-    diffusivity_flat = diffusivity.reshape(batch_size, N_cells ** 2)
+    conductivity_flat = conductivity_new.reshape(batch_size, N_cells ** 2)
     
     # tile to make it double 
-    diffusivity_flat = np.concatenate([diffusivity_flat, diffusivity_flat], axis=1).flatten()
+    conductivity_flat = np.concatenate([conductivity_flat, conductivity_flat], axis=1).flatten()
     
-    C_batch = sp.diags(diffusivity_flat, 0, format="csr")
+    C_batch = sp.diags(conductivity_flat, 0, format="csr")
 
     # Compute and return the final result: -L.T @ C @ L
     return -(L_batch.T@ C_batch @ L_batch)
 
 @jax.custom_vjp
-def fd_diffusion(diffusivity):
+def fd_diffusion(conductivity):
 
-    batch_size, N_cells, _ = diffusivity.shape 
+    batch_size, N_cells, _ = conductivity.shape 
     N = N_cells + 1 # Number of points in the square grid
 
     x, y = np.linspace(-50, 50, N), np.linspace(-50, 50, N) # in nanometers
     dx = x[1] - x[0]
     dy = y[1] - y[0]
 
-    L = laplacian(diffusivity)
+    L = laplacian(conductivity)
     
     # Source term calculation
     S = np.zeros((batch_size, N - 1, N - 1))
@@ -102,28 +103,26 @@ def fd_diffusion(diffusivity):
     # Reshape the solution to 2D
     T = T_flat.reshape((batch_size, N - 1, N - 1))
 
-    L_jax = BCSR.from_scipy_sparse(L)
-
-    return T, L_jax
+    return T
 
 
-def fd_fwd(diffusivity):
-    T, L = fd_diffusion(diffusivity)
-    return T, (T, L, diffusivity)
+def fd_fwd(conductivity):
+    T = fd_diffusion(conductivity)
+    return T, conductivity
 
 def fd_bwd(res, grads):
 
-    T, L, diffusivity = res
+    conductivity = res
     dLoss_dT = grads
 
-    L = laplacian(diffusivity)
+    L = laplacian(conductivity)
 
     dLossdT_flatten = dLoss_dT.flatten()
 
     lambd = spsolve(L.T, dLossdT_flatten.T)
 
 
-    lambd = lambd.reshape(diffusivity.shape)
+    lambd = lambd.reshape(conductivity.shape)
 
     #dL_dK = (lambd.T @ dL_dK) @ T  
     

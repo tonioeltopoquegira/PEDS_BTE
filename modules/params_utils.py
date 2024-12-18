@@ -1,52 +1,78 @@
 import os
 import orbax.checkpoint as ocp
-from jax import random
-import jax.numpy as jnp
-from flax.training import train_state
-import shutil
+from flax import nnx
+from pathlib import Path
+from datetime import datetime
 
 
-def init_params(model, seed, dataset_shape):
+# Function for initializing or restoring model parameters
+def initialize_or_restore_params(generator, model_name, base_dir="weights"):
+    """
+    Initialize or restore model parameters based on the existence of a checkpoint.
 
-    rng = random.PRNGKey(seed)
-    shape_input = dataset_shape[1:]
-    dummy_batch_size = (17,)
-    shape_input = dummy_batch_size + shape_input
-    params = model.init(rng, jnp.ones(shape_input))['params']
+    Parameters:
+        generator: Callable
+            The model generator function.
+        model_name: str
+            Name of the model for checkpointing.
+        base_dir: str
+            Base directory for storing weights.
 
-    return params
+    Returns:
+        model: nnx.Model
+            The initialized or restored model.
+    """
+    # Define paths
+    ckpt_dir = Path(base_dir) / model_name
+    
+    # Ensure checkpoint directory exists
+    if not ckpt_dir.exists():
+        print(f"Checkpoint directory does not exist. Creating new directory at {ckpt_dir}.")
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-def update_params(path, model, seed, dataset_shape):
+    # Create the checkpointer
+    checkpointer = ocp.StandardCheckpointer()
 
-    if os.path.exists(f"weights/{path}") and os.listdir(f"weights/{path}") and False:
-        print("Restoring present params checkpoint")
-        # Try restoring the checkpoint
-        checkpointer = ocp.PyTreeCheckpointer()
-        options = ocp.CheckpointManagerOptions(max_to_keep=1, create=False)
-        save_path_old = os.path.abspath(f"weights/{path}")
+    # Generate the abstract model
+    graphdef, abstract_state = nnx.split(generator)
 
-        mngr_restored = ocp.CheckpointManager(save_path_old, checkpointer, options)
-
-        try:
-            restored_ckpt = mngr_restored.restore(mngr_restored.latest_step())
-            # Parameters from checkpoint
-            final_params = restored_ckpt["state"]["params"]
-        except FileNotFoundError:
-            print(f"Warning: No valid checkpoint found in {save_path_old}. Initializing new parameters.")
-            final_params = init_params(model, seed, dataset_shape)
-            mngr_restored = None  # No manager if restore failed
+    try:
+        last_checkpoint = max(
+            (d for d in ckpt_dir.iterdir() if d.is_dir()),  # Consider all directories
+            key=lambda x: x.name.split('_')[-2] + '_' + x.name.split('_')[-1],  # Use the last two parts as timestamp
+        )
+        print(f"Found last checkpoint: {last_checkpoint}")
         
+        # Attempt to restore the state
+        try:
+            state_restored = checkpointer.restore(last_checkpoint , abstract_state)
+            print(f"Successfully restored state from {last_checkpoint}.")
+        except Exception as e:
+            print(f"Restoration failed with error: {e}. Initializing new parameters.")
+            state_restored = abstract_state  # Initialize new state
+
+    except ValueError:
+        # If no checkpoint is found
+        print("No checkpoints found. Initializing new parameters.")
+        state_restored = abstract_state  # Initialize new state
+
+
+    # Merge graph definition with restored or initialized state
+    model = nnx.merge(graphdef, state_restored)
+    return model, checkpointer, ckpt_dir
+
+def save_params(generator, checkpointer, epoch=None):
+
+    _, state = nnx.split(generator)
+    #nnx.display(state)
+    base_dir = os.path.abspath('weights/base_peds')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M')  # e.g., "20241213_123456"
+    if epoch is None:
+        timestamp = f'final_' + timestamp
     else:
-        print("Initialize params from scratch")
-        # Otherwise, create a new Checkpoint Manager for saving new parameters
-        save_path = os.path.abspath(f"weights/{path}")
+        timestamp = f'epoch{epoch}_' + timestamp
+    
+    new_checkpoint_dir = os.path.join(base_dir, timestamp)
 
-        checkpointer_new = ocp.PyTreeCheckpointer()
-        options_new = ocp.CheckpointManagerOptions(max_to_keep=1, create=True)
-        mngr_new = ocp.CheckpointManager(save_path, checkpointer_new, options_new)
-
-        final_params = init_params(model, seed, dataset_shape)
-
-    # Return the relevant manager (restored or new)
-    return final_params, mngr_restored if 'mngr_restored' in locals() else mngr_new
-
+    #os.makedirs(new_checkpoint_dir, exist_ok=False)  # Ensure the directory does not already exist
+    checkpointer.save(new_checkpoint_dir, state)

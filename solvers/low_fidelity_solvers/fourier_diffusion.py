@@ -1,22 +1,11 @@
-import jax
-import jax.random as random
 import jax.numpy as jnp
 import jax.lax as lax
-from jax import vmap
 from flax import nnx
-from jax import custom_vjp
-import gc
-
-#from solvers.low_fidelity_solvers.utilities_lowfid import plot_temperature, flux_kappa
-from utilities_lowfid import plot_temperature
-
-
-import matplotlib.pyplot as plt
 
 @nnx.jit
-def fourier_solver(diffusivity, iterations=1000, display = False):
-    batch_size = diffusivity.shape[0]
-    N = diffusivity.shape[1]
+def fourier_solver(conductivity, iterations=1000, display = False):
+    batch_size = conductivity.shape[0]
+    N = conductivity.shape[1]
 
     u = jnp.zeros((batch_size, N, N))
 
@@ -25,10 +14,10 @@ def fourier_solver(diffusivity, iterations=1000, display = False):
         u = u.at[:, :, i].set(gradient)
 
 
-    kappa_r = jnp.roll(diffusivity, shift=1, axis=1)
-    kappa_l = jnp.roll(diffusivity, shift=-1, axis=1)
-    kappa_d = jnp.roll(diffusivity, shift=-1, axis=2)
-    kappa_u = jnp.roll(diffusivity, shift=1, axis=2)
+    kappa_r = jnp.roll(conductivity, shift=1, axis=1)
+    kappa_l = jnp.roll(conductivity, shift=-1, axis=1)
+    kappa_d = jnp.roll(conductivity, shift=-1, axis=2)
+    kappa_u = jnp.roll(conductivity, shift=1, axis=2)
 
     kappa_sum = kappa_r+kappa_l+kappa_d+kappa_u
 
@@ -71,4 +60,4 @@ def update_step(u, kappa_sum, kappa_r, kappa_l, kappa_u, kappa_d, u_r, u_l, u_u,
 if __name__ == "__main__":
 
     from utilities_lowfid import test_solver
-    test_solver(fourier_solver, num_obs=500, jax=True)
+    test_solver(fourier_solver, num_obs=100, name_solver='gausseidel')

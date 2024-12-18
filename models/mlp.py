@@ -1,5 +1,4 @@
 from flax import nnx
-import jax
 import jax.numpy as jnp
 
 class mlp(nnx.Module):
@@ -8,9 +7,11 @@ class mlp(nnx.Module):
         
         super().__init__()
 
-        dense_init = nnx.initializers.zeros_init()
+        dense_init = nnx.initializers.glorot_normal()
+
+        #dense_init = nnx.initializers.ones_init()
         
-        bias_init = nnx.initializers.constant(1.0)
+        bias_init = nnx.initializers.constant(0.0)
 
         # 100 nanometers / step_size nanometer
         self.final_size = int(100 / step_size)
@@ -25,11 +26,11 @@ class mlp(nnx.Module):
         x = jnp.reshape(x, (25,))
 
         for layer in self.layers:
-            x = nnx.relu(layer(x))
+            x = nnx.tanh(layer(x)) 
 
         
         #x = jax.lax.reshape(x, (batch_size, self.final_size, self.final_size))
-        x = jnp.reshape(x, (self.final_size, self.final_size))
+        x = 150.0 * jnp.reshape(x, (self.final_size, self.final_size))
 
         
         return x

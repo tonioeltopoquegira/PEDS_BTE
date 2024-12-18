@@ -8,9 +8,8 @@ from jax.sharding import Mesh, PartitionSpec, NamedSharding
 import numpy as np
 
 from models.peds import PEDS
-from modules.params_utils import update_params
+from modules.params_utils import initialize_or_restore_params
 from modules.training import train_model
-
 
 from models.mlp import mlp
 from solvers.low_fidelity_solvers.lowfidsolver_class import lowfid
@@ -30,9 +29,9 @@ path = "base_peds"
 # Ingest data <- Here we will do active learning
 full_data = jnp.load("data/highfidelity/high_fidelity_10012_20steps.npz", allow_pickle=True)
 
-pores = jnp.asarray(full_data['pores'], dtype=jnp.float32)[:10000]
-kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32)[:10000]
-base_conductivities = jnp.asarray(full_data['conductivity'], dtype=jnp.float32)[:10000]
+pores = jnp.asarray(full_data['pores'], dtype=jnp.float32)[:100]
+kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32)[:100]
+base_conductivities = jnp.asarray(full_data['conductivity'], dtype=jnp.float32)[:100]
 
 # Create dataset
 
@@ -46,8 +45,15 @@ dataset = [pores, base_conductivities, kappas]
 key = nnx.Rngs(42)
 
 generator = mlp(input_size= 25, hidden_sizes=[64, 256], step_size=5, rngs=key)
-lowfidsolver = lowfid(iterations=5000)
+
+# Params initializing or restoring
+
+generator, checkpointer, ckpt_dir = initialize_or_restore_params(generator, model_name='base_peds')
 
 
-train_model(dataset=dataset, epochs=1, generator=generator, lowfidsolver=lowfidsolver)
+lowfidsolver = lowfid(solver='direct', iterations=1000)
+
+
+
+train_model(dataset=dataset, epochs=100, generator=generator, lowfidsolver=lowfidsolver, checkpointer = checkpointer, ckpt_dir=ckpt_dir)
 
