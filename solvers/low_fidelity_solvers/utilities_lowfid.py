@@ -19,7 +19,7 @@ def plot_temperature(base_conductivities, Temperatures, name_solver):
     norm_T = mcolors.Normalize(vmin=Temperatures[0].min(), vmax=Temperatures[0].max())
 
     threshold = jnp.min(base_conductivities[:3]) +0.01
-
+    
     masked_T0 = np.ma.masked_where(base_conductivities[0] < threshold, Temperatures[0, :, :])
     masked_T1 = np.ma.masked_where(base_conductivities[1] < threshold, Temperatures[1, :, :])
     masked_T2 = np.ma.masked_where(base_conductivities[2] < threshold, Temperatures[2, :, :])
@@ -61,15 +61,14 @@ def plot_temperature(base_conductivities, Temperatures, name_solver):
     plt.tight_layout()
     temp_save_path = f"figures/test_solvers/{name_solver}_temperatures_and_flux.png"
     plt.savefig(temp_save_path)
-    print(f"Temperature examples saved to {temp_save_path}")
 
 def plot_gradients(base_conductivities, gradients, name_solver):
-    print("Inside!!!")
+    
     cmap = plt.cm.RdYlGn  # Red-Green colormap
     gradients = check_gradients(gradients)
     #norm_g = mcolors.Normalize(vmin=gradients[1].min(), vmax=gradients[1].max())
 
-    threshold = jnp.min(base_conductivities[:3]) + 0.01
+    threshold = jnp.min(base_conductivities[:3]) - 0.01
 
     masked_g0 = np.ma.masked_where(base_conductivities[0] < threshold, gradients[0, :, :])
     masked_g1 = np.ma.masked_where(base_conductivities[1] < threshold, gradients[1, :, :])
@@ -77,7 +76,6 @@ def plot_gradients(base_conductivities, gradients, name_solver):
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-    print("Before building")
     # First subplot for Gradient 1
     im1 = axes[0].imshow(masked_g0, cmap=cmap, interpolation='nearest')
     axes[0].set_title('Gradient Example 1')
@@ -96,10 +94,10 @@ def plot_gradients(base_conductivities, gradients, name_solver):
     fig.colorbar(im3, ax=axes[2], label='Gradient')
 
     plt.tight_layout()
-    print("Saving")
+    
     grad_save_path = f"figures/test_solvers/{name_solver}_gradients_example.png"
     plt.savefig(grad_save_path)
-    print(f"Gradient examples saved to {grad_save_path}")
+    
     
 
 
@@ -121,27 +119,29 @@ def test_solver(solver, num_obs, name_solver):
     base_conductivities = jnp.vstack([base0, base_conductivities])  # Add base0 as the first 2D array
 
     # Perform forward pass and check for 3
-    Temperatures = solver(base_conductivities[:3]/150.0)
+    Temperatures = solver(base_conductivities[:3])
     plot_temperature(base_conductivities, Temperatures, name_solver)
 
     # Perform forward and measure speed for num_obs observations
     t = time.time()
-    temperatures = solver(base_conductivities[:num_obs])
+    #temperatures = solver(base_conductivities[:num_obs])
     print(f"Final time: {time.time()-t} after computing {num_obs} observations on step size 100")
 
     print("Check Gradients")
     # Measure time for backward computation with all examples
-    @jax.jit
+    #@jax.jit
     def loss(base):
-        
         Ts = solver(base)
         Jy = jnp.zeros_like(Ts)
         Jy = -base[:, :-1, :] * (Ts[:, 1:, :] - Ts[:, :-1, :]) / 1.0
-        #Jy = jnp.pad(Jy, ((0, 0), (0, 1), (0, 0)), mode='constant', constant_values=0)
+        Jy = jnp.pad(Jy, ((0, 0), (0, 1), (0, 0)), mode='constant', constant_values=0)
 
         kappa_pred = jnp.sum(Jy[:, base.shape[1] // 2, :], axis=-1)
+        
+        kappa_print = jax.lax.stop_gradient(kappa_pred)
+        print("Kappas", np.array(kappa_print))
         return jnp.sum((kappa_pred - kappas[:3]) ** 2)
-        #return jnp.sum(Ts**2) or jnp.sum(Ts) # Interesting for gradient evaluation
+        #return jnp.sum(Ts**2)  # Interesting for gradient evaluation or jnp.sum(Ts)
 
     t_backward = time.time()
     value, grads = jax.value_and_grad(loss)(base_conductivities[:3])

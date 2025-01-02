@@ -2,34 +2,70 @@ from flax import nnx
 import jax
 import jax.numpy as jnp
 
-class mlp(nnx.Module):
+from flax import nnx
+import jax.numpy as jnp
+import jax
 
-    def __init__(self, input_size:int, hidden_sizes:int, step_size:int, rngs:nnx.Rngs):
-        
+class unet(nnx.Module):
+
+    def __init__(self, rngs: nnx.Rngs):
         super().__init__()
 
-        dense_init = nnx.initializers.zeros_init()
-        
-        bias_init = nnx.initializers.constant(1.0)
+        self.encoder_filters = [1, 16]  # Filters in downsampling path
+        self.decoder_filters = [16, 1]  # Filters in upsampling path
+        self.bottleneck_filters = 64     # Bottleneck filters
 
-        # 100 nanometers / step_size nanometer
-        self.final_size = int(100 / step_size)
+        # Encoder layers
+        self.encoder = [
+            nnx.Conv(in_features=i, out_features=o, kernel_size=(3, 3), strides=(1, 1), padding="SAME",
+                     kernel_init=nnx.initializers.xavier_uniform(), rngs=rngs)
+            for i,o in zip(self.encoder_filters[:-1], self.encoder_filters[1:])
+        ]
         
-        self.layer_sizes = [input_size] + list(hidden_sizes) + [self.final_size**2]
-        
-        self.layers = [nnx.Linear(i, o, kernel_init=dense_init, bias_init=bias_init, rngs=rngs) for i, o in zip(self.layer_sizes[:-1], self.layer_sizes[1:])]
-    
+        self.bottleneck = nnx.Conv(in_features=32, out_features=32, kernel_size=(3, 3),
+                                   strides=(1, 1), padding="SAME",
+                                   kernel_init=nnx.initializers.xavier_uniform(), rngs=rngs)
+        # Decoder layers
+        self.decoder = [
+            nnx.ConvTranspose(in_features=i, out_features=o, kernel_size=(3, 3), strides=(2, 2), padding="SAME",
+                              kernel_init=nnx.initializers.xavier_uniform(), rngs=rngs)
+            for i,o in zip(self.decoder_filters[:-1], self.decoder_filters[1:])
+        ]
+        self.output_layer = nnx.Conv(in_features=1, out_features=1, kernel_size=(3, 3), strides=(1, 1), padding="SAME",
+                                     kernel_init=nnx.initializers.xavier_uniform(), rngs=rngs)
+
+        self.dropout = nnx.Dropout(rate=0.5, rngs=rngs)
+
     @nnx.jit
     def __call__(self, x):
+        # Input shape: (batch_size, 20, 20)
 
-        x = jnp.reshape(x, (25,))
+        # Downsampling path
+        encoder_outputs = []
+        for layer in self.encoder:
+            x = layer(x)
+            x = nnx.tanh(x)  # Use tanh activation
+            encoder_outputs.append(x)
+            x = jax.lax.reduce_window(x, init_value=0.0, computation=jax.lax.add, 
+                                      window_dimensions=(2, 2), window_strides=(2, 2), padding='SAME')  # Max pooling
 
-        for layer in self.layers:
-            x = nnx.relu(layer(x))
+        # Bottleneck
+        x = self.bottleneck(x)
+        x = nnx.tanh(x)
+        x = self.dropout(x)
 
-        
-        #x = jax.lax.reshape(x, (batch_size, self.final_size, self.final_size))
-        x = jnp.reshape(x, (self.final_size, self.final_size))
+        # Upsampling path
+        for layer, skip_connection in zip(self.decoder, reversed(encoder_outputs)):
+            x = layer(x)
+            x = nnx.tanh(x)
+            x = jnp.concatenate([x, skip_connection], axis=-1)  # Skip connection
 
-        
+        # Output layer
+        x = self.output_layer(x)
+        x = nnx.tanh(x)
+        x = 150.0 * x  # Scale the output
+        x = jnp.minimum(200.0, x)
+        x = jnp.maximum(-50.0, x)
+
+        # Output shape: (batch_size, 20, 20)
         return x
