@@ -43,17 +43,17 @@ generator = mlp(input_size= 25, hidden_sizes=[32, 64, 128], step_size=5, rngs=ke
 #generator = cnn(rngs=key)
 
 # Params initializing or restoring
-generator, checkpointer, ckpt_dir = initialize_or_restore_params(generator, model_name='base_peds')
+generator, checkpointer, ckpt_dir = initialize_or_restore_params(generator, model_name='peds_PI')
 
 # Low Fidelity Solver
 lowfidsolver = lowfid(solver='gauss', iterations=1000)
 
 # Train the model
-train_model(model_name = 'base_peds',
+train_model(model_name = 'peds_PI',
         dataset_train=dataset_train, dataset_valid = dataset_valid,
         generator=generator, 
         lowfidsolver=lowfidsolver, 
-        learn_rate_min= 5e-5, learn_rate_max=5e-5, schedule='constant', epochs=2000, batch_size = 100,
+        learn_rate_min= 5e-5, learn_rate_max=5e-4, schedule='cosine-cycles', epochs=2000, batch_size = 100,
         checkpointer = checkpointer, ckpt_dir=ckpt_dir
         )
 

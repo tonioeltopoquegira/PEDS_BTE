@@ -1,5 +1,8 @@
 import time
 import os
+
+os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"  
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -22,8 +25,8 @@ def train_model(model_name,
     os.makedirs(f"figures/{model_name}", exist_ok=True)
     os.makedirs(f"figures/{model_name}/training_evolution", exist_ok=True)
 
+    # Scheduler optimizer
     lr_schedule = choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs)
-
     optimizer = nnx.Optimizer(generator, optax.adam(lr_schedule))
 
 
@@ -36,10 +39,10 @@ def train_model(model_name,
 
             if batch_n == 0:
                 #print(f"Kappas Pred:{kappa_pred[0].item()}, Kappa Target: {kappas[0]}")
-                if epoch % 50 == 0:
+                if epoch % 1 == 0:
                     print_generated(conductivities, conductivity_res, epoch, model_name, kappa_pred, kappas)
 
-            return jnp.sum(residuals**2) # mean??
+            return jnp.sum(residuals**2)
 
         loss, grads = nnx.value_and_grad(loss_fn)(generator)
         
@@ -49,11 +52,15 @@ def train_model(model_name,
 
     epoch_losses = np.zeros(epochs) # 
     valid_losses = np.zeros(epochs)
+    valid_perc_losses = np.zeros(epochs)
 
     for epoch in range(epochs):
 
+        epoch_time = time.time()
+
         grads = None
         total_loss = 0.0  # Initialize total loss for the epoch
+        
 
         batch_size = batch_size // n_devices
 
@@ -69,33 +76,28 @@ def train_model(model_name,
         
         avg_loss = total_loss / dataset_train[0].shape[0]
 
-
-
-        total_val_loss = 0.0
-        for en, val_batch in enumerate(data_loader(*dataset_valid, batch_size=batch_size)):
-            val_pores, val_conductivities, val_kappas = val_batch
-            kappa_val, _ = predict(generator, lowfidsolver, val_pores, val_conductivities)
-            total_val_loss += jnp.sum((kappa_val - val_kappas)**2)
-        
-        avg_val_loss = total_val_loss / (dataset_valid[0]).shape[0]
+        avg_val_loss, total_loss_perc = valid(dataset_valid, batch_size, generator, lowfidsolver)
 
         # Print the average loss at the end of each epoch
-        print(f"Epoch {epoch+1}/{epochs}, Training Loss: {avg_loss}, Validation Loss: {avg_val_loss}")
+        print(f"Epoch {epoch+1}/{epochs}, Training Loss: {avg_loss:.2f}, Validation Losses: [{avg_val_loss:.2f}, {total_loss_perc:.2f}%], Epoch time: {time.time() - epoch_time:.2f}s")
 
         epoch_losses[epoch] = avg_loss
         valid_losses[epoch] = avg_val_loss
+        valid_perc_losses[epoch] = total_loss_perc
 
-        #grads = clip_gradients(grads, clip_value=0.99)
+
+        # grads = clip_gradients(grads, clip_value=0.99)
         
         # Calculate validation loss HERE 
 
         optimizer.update(grads)
-        if epoch % 50 == 0:
-            plot_learning_curves(epoch_losses, valid_losses, schedule, model_name, epoch)
+
+        if epoch % 10 == 0:
+            plot_learning_curves(epoch_losses, valid_losses, valid_perc_losses, schedule, model_name, epoch, learn_rate_max, learn_rate_min)
 
     save_params(generator, checkpointer)
     
-@nnx.jit
+
 def predict(generator, lowfidsolver, pores, conductivities):
 
     conductivity_res = nnx.vmap(generator)(pores)
@@ -125,6 +127,22 @@ def predict(generator, lowfidsolver, pores, conductivities):
         raise ValueError("The computed kappa contains infinity or nan values.")"""
     
     return kappa, conductivity_res
+
+
+def valid(dataset, batch_size, generator, lowfidsolver):
+
+    total_val_loss = 0.0
+    total_loss_perc = 0.0
+    for en, val_batch in enumerate(data_loader(*dataset, batch_size=batch_size)):
+        val_pores, val_conductivities, val_kappas = val_batch
+        kappa_val, _ = predict(generator, lowfidsolver, val_pores, val_conductivities)
+        total_val_loss += jnp.sum((kappa_val - val_kappas)**2)
+        max_error_perc = jnp.max(jnp.abs(kappa_val - val_kappas)*100.0/val_kappas)
+        total_loss_perc = jnp.maximum(total_loss_perc, max_error_perc)
+    
+    avg_val_loss = total_val_loss / (dataset[0]).shape[0]
+
+    return avg_val_loss, total_loss_perc
 
 
 

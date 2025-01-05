@@ -29,7 +29,7 @@ def laplacian(conductivity, h=1.0):
     D = sp.diags([dx1, dx2], [0, 1], shape=(N - 1, N - 1), format="csr")
 
     # Scale by h^2 for the Laplacian (if required)
-    h = 1.0  
+    h = 5.0  
     D = D / (h**2) # can we delete it??
 
 
@@ -62,7 +62,7 @@ def laplacian(conductivity, h=1.0):
 
     #conductivity[:, -1, :] = 1.0
     #conductivity[:, 0,:] = 1.0
-    conductivity = conductivity / 150.0
+    conductivity = conductivity #/ 150.0
     conductivity_new = conductivity.at[:, -1, :].set(1.0)
     conductivity_new = conductivity_new.at[:,0,:].set(1.0)
     # Flatten
@@ -83,6 +83,9 @@ def fd_diffusion(conductivity):
     batch_size, N_cells, _ = conductivity.shape 
 
     L, _, _ = laplacian(conductivity)
+
+    #assert np.allclose(L[0].toarray(), L[0].toarray().transpose()), "L is not symmetric!"
+    #print("Assertion passed! L is Self-Adjoint!!")
     
     # Source term calculation
     S = np.zeros((batch_size, N_cells, N_cells))
@@ -97,7 +100,7 @@ def fd_diffusion(conductivity):
     # Reshape the solution to 2D
     T = T_flat.reshape((batch_size, N_cells, N_cells))
 
-    return T
+    return T * 150.0
 
 
 def fd_fwd(conductivity):
@@ -105,7 +108,7 @@ def fd_fwd(conductivity):
     return T, (conductivity, T)
 
 
-"""def fd_bwd(res, grads):
+def fd_bwd(res, grads):
 
     # prova output costante e vedi se funziona come ti aspetti
 
@@ -117,7 +120,7 @@ def fd_fwd(conductivity):
 
     # We have a loss function l(f(T)), temperature T, conductivity K, laplacian L, source term S
     # Forward we have (K, S) -(1)-> L(K)T=S -(2)-> f(T, K) -(3)-> l(f(T))
-    # Backward for the step (2) we want dl/dK = dl/df @ df/dK + dl/dT @ L^{-1} @ (dS/dK + dL/dK @ T)  (recall--> T = L^{-1}S)
+    # Backward for the step (2) we want dl/dK = dl/df @ df/dK + dl/df @ df/dT @ L^{-1} @ (dS/dK + dL/dK @ T)  (recall--> T = L^{-1}S)
     # Note that the first term is already taken in account before in the backprop... we just need to work on:
     # dT/dK = L^{-1} @ ( dS/dK + dL/dK @ T) where dS/dK = 0 therefore we have
     # dT/dK = L^{-1} @ dL/dK @ T OR dl/dK = dl/dT @ dT/dK = dl/dT @ L^{-1} @ ( dS/dK + dL/dK @ T)
@@ -134,74 +137,27 @@ def fd_fwd(conductivity):
 
     dL_dK = -(L_base.T @ dC_dK @ L_base)
 
+    
+
     # (batch_size, 100, 100, 100, 100) @ (batch_size, 100, 100) = (batch_size, 100, 100)
     # (batch_size, 10000, 10000) @ (batch_size, 10000) = (batch_size, 10000)
     rhs = dL_dK @ T.flatten()
 
     # (batch_size, 10000, 10000) @ lambd = (batch_size, 10000)
-    lambd = spsolve(L, rhs)
+    #L_transpose = L.toarray().transpose()
+    lambd = spsolve(L.T, rhs.T) 
 
     # lambda reshape (batch_size, 10000) ---> (batch_size, 100, 100)
     lambd_reshape = lambd.reshape(K.shape)
 
     # (batch_size, 100, 100) = (batch_size, 100, 100) @ (batch_size, 100, 100)
-    dl_dK = dl_dT @ lambd_reshape
+    #dl_dK = dl_dT @ lambd_reshape
+    dl_dK =  dl_dT @ lambd_reshape 
 
-    return (dl_dK,)"""
+    #return (lambd_reshape,)
+    return (dl_dK,)
 
-"""def fd_bwd(res, grads):
-
-    K, T = res
-    batch_size, N_cells, _ = K.shape
-    L, L_base, C = laplacian(K)
-
-    lambd = spsolve(L, grads.flatten())
-
-    conductivity_flat = K.reshape(batch_size, N_cells ** 2)
-    conductivity_flat = np.concatenate([conductivity_flat, conductivity_flat], axis = 1)
-    dC_dK = sp.diags(np.ones_like(conductivity_flat.flatten()), 0, format="csr")
-    dL_dK = -(L_base.T @ dC_dK @ L_base)
-    lambd = lambd.reshape(K.shape)
-
-    # Compute dL/dK using λ and T
-    #dL_dK = - lambd @ T / 150
-    #dL_dK = - lambd * T / 150
-    #dL_dK = np.einsum('bij,bjk->bik', lambd, T)
-
-    #dL_dK = - lambd @ dL_dK 
-
-    #dL_dK = dL_dK.reshape(K.shape) @ T
-    
-    return (dL_dK,)"""
-
-def fd_bwd(res, grads):
-    
-    conductivity, T = res  # Extract forward pass variables
-    batch_size, N_cells, _ = conductivity.shape
-
-    # Recompute the Laplacian and related matrices
-    L, L_batch, C_batch = laplacian(conductivity)
-
-    # Flatten gradients from T for solving adjoint equation
-    grads_flat = grads.flatten()
-
-    # Solve the adjoint equation: L^T λ = ∂L/∂T (grads)
-    adjoint_variable = spsolve(L.T, grads_flat)
-
-    # Compute dL/dC (gradient w.r.t. conductivity matrix)
-    dL_dC = (L_batch @ adjoint_variable)
-
-    # Reshape dL/dC back to match the conductivity dimensions
-    dL_dC = dL_dC.reshape((batch_size, 2 * (N_cells**2)))
-
-
-    # Sum over the two tiled conductivity contributions
-    dL_dC_reshaped = dL_dC[:, :N_cells**2] + dL_dC[:, N_cells**2:]
-
-    # Adjust for conductivity's placement in sparse matrix
-    dL_dK = dL_dC_reshaped.reshape((batch_size, N_cells, N_cells))
-
-    return (dL_dK,)
+# careful with the transposes above !!
 
 
 fd_diffusion.defvjp(fd_fwd, fd_bwd)
@@ -212,6 +168,105 @@ if __name__ == "__main__":
     from utilities_lowfid import test_solver
 
     test_solver(fd_diffusion, 200, "laplacian")
+
+    import numpy as np
+    from jax import numpy as jnp, grad, random
+    import matplotlib.pyplot as plt
+
+    # Function to compute numerical gradients using finite differences
+    def finite_diff_grad(f, x, eps=1e-4):
+        grad = np.zeros_like(x)
+        for idx in np.ndindex(x.shape):
+            x_pos = x.copy()
+            x_neg = x.copy()
+            x_pos[idx] += eps
+            x_neg[idx] -= eps
+            grad[idx] = (f(x_pos) - f(x_neg)) / (2 * eps)
+        return grad
+
+    # Randomized dot product test for adjoint consistency
+    def randomized_dot_product_test(jac_fn, adjoint_fn, x, v, u):
+        """
+        Tests if ⟨v, J u⟩ == ⟨Jᵀ v, u⟩ where J is the Jacobian.
+        """
+        # Compute forward product ⟨v, J u⟩
+        J_u = jac_fn(x) @ u
+        forward_dot = np.dot(v.flatten(), J_u.flatten())
+        
+        # Compute reverse product ⟨Jᵀ v, u⟩
+        J_T_v = adjoint_fn(x, v)
+        reverse_dot = np.dot(J_T_v.flatten(), u.flatten())
+        
+        assert np.isclose(forward_dot, reverse_dot, atol=1e-5), \
+            f"Adjoint consistency test failed! Forward: {forward_dot}, Reverse: {reverse_dot}"
+        print("Randomized dot product test passed!")
+    
+    # Visualization function
+    def visualize_grad_comparison(fd_grad, custom_grad):
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+
+        fd_grad = np.reshape(fd_grad, (9,9))
+        custom_grad = np.reshape(custom_grad, (9,9))
+
+
+        # Heatmap for finite difference gradients
+        im1 = axes[0].imshow(fd_grad, cmap="viridis", aspect="auto")
+        axes[0].set_title("Finite Difference Gradient")
+        plt.colorbar(im1, ax=axes[0])
+
+        # Heatmap for custom gradients
+        im2 = axes[1].imshow(custom_grad, cmap="viridis", aspect="auto")
+        axes[1].set_title("Custom Gradient")
+        plt.colorbar(im2, ax=axes[1])
+
+        plt.tight_layout()
+        plt.show()
+
+    # Main test function
+    def test_fd_diffusion(fd_diffusion):
+        """
+        Tests the correctness of the fd_diffusion adjoint implementation.
+        """
+        batch_size = 1
+        N_cells = 10
+        key = random.PRNGKey(42)
+        conductivity = random.uniform(key, shape=(batch_size, N_cells - 1, N_cells - 1))
+
+        # Define a simple scalar loss function
+        def loss_fn(cond):
+            T = fd_diffusion(cond)
+            return jnp.sum(T**2)
+
+        # Finite difference gradient check
+        print("Running finite difference gradient check...")
+        loss_numpy = lambda x: np.array(loss_fn(jnp.array(x)))
+        fd_grad = finite_diff_grad(loss_numpy, np.array(conductivity), eps = 0.001)
+
+        # Custom adjoint gradient
+        custom_grad_fn = grad(loss_fn)
+        custom_grad = np.array(custom_grad_fn(conductivity))
+        visualize_grad_comparison(fd_grad, custom_grad)
+
+        # Compare finite difference and custom gradients
+        #assert np.allclose(fd_grad, custom_grad, atol=1e-5), \
+        #    f"Finite difference test failed!\nFD Grad:\n{fd_grad}\nCustom Grad:\n{custom_grad}"
+        #print("Finite difference test passed!")
+
+        # Randomized dot product test
+        print("Running randomized dot product test...")
+        v = np.random.randn(*custom_grad.shape)  # Random vector v
+        u = np.random.randn(*custom_grad.shape)  # Random vector u
+
+        # Jacobian-vector product function (J u)
+        jac_fn = lambda x: grad(loss_fn)(x)
+
+        # Adjoint-vector product function (Jᵀ v)
+        adjoint_fn = lambda x, v: grad(lambda cond: jnp.sum(v * fd_diffusion(cond)))(x)
+
+        randomized_dot_product_test(jac_fn, adjoint_fn, conductivity, v, u)
+
+    test_fd_diffusion(fd_diffusion)
+    print("All tests passed!")
 
 
 

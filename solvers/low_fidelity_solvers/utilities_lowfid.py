@@ -61,6 +61,7 @@ def plot_temperature(base_conductivities, Temperatures, name_solver):
     plt.tight_layout()
     temp_save_path = f"figures/test_solvers/{name_solver}_temperatures_and_flux.png"
     plt.savefig(temp_save_path)
+    plt.close()
 
 def plot_gradients(base_conductivities, gradients, name_solver):
     
@@ -97,6 +98,7 @@ def plot_gradients(base_conductivities, gradients, name_solver):
     
     grad_save_path = f"figures/test_solvers/{name_solver}_gradients_example.png"
     plt.savefig(grad_save_path)
+    plt.close()
     
     
 

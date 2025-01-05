@@ -119,19 +119,42 @@ def clip_gradients(grads, clip_value=1.0):
     return jax.tree_util.tree_map(lambda g: jnp.clip(g, -clip_value, clip_value), grads)
 
 
-def plot_learning_curves(epoch_losses, valid_losses, schedule, ckpt_dir, epoch):
-    """Plot the learning curve."""
+def plot_learning_curves(epoch_losses, valid_losses, valid_perc_losses, schedule, ckpt_dir, epoch, learn_rate_max, learn_rate_min):
+    """Plot the learning curve and validation percentage losses."""
     epochs = jnp.arange(epoch)
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(epochs, epoch_losses[:epoch], 'bo-', label='Training Loss')
-    plt.plot(epochs, valid_losses[:epoch], 'ro-', label = 'Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Learning Curve')
-    plt.legend()
-    plt.grid()
+    # Create a figure with two subplots
+    fig, axs = plt.subplots(1, 2, figsize=(15, 6))
+
+    # First subplot: Training and validation losses
+    axs[0].plot(epochs, epoch_losses[:epoch], 'bo-', label='Training Loss')
+    axs[0].plot(epochs, valid_losses[:epoch], 'ro-', label='Validation Loss')
+    axs[0].set_xlabel('Epoch')
+    axs[0].set_ylabel('Loss')
+    axs[0].set_title(f'Learning Curve - Rates [{learn_rate_min}, {learn_rate_max}]')
+    axs[0].legend()
+    axs[0].grid()
+
+    # Second subplot: Validation percentage loss
+    axs[1].plot(epochs, valid_perc_losses[:epoch], 'go-', label='Validation % Loss')
+    axs[1].axhline(5.0, color='gray', linestyle='--', label='5.00% Line')  # Add the 5.00% line
+
+    # Highlight the epoch where valid_perc_loss hits 5%
+    for i, perc_loss in enumerate(valid_perc_losses[:epoch]):
+        if perc_loss <= 5.0:
+            axs[1].scatter(i, perc_loss, color='red', label=f'Hit 5% at Epoch {i}' if 'Hit' not in axs[1].get_legend_handles_labels()[1] else None)
+            break  # Stop after marking the first hit
+
+    axs[1].set_xlabel('Epoch')
+    axs[1].set_ylabel('Validation % Loss')
+    axs[1].set_title('Validation % Loss Evolution')
+    axs[1].legend()
+    axs[1].grid()
+
+    # Save the figure
+    plt.tight_layout()
     plt.savefig(f"figures/{ckpt_dir}/learning_curve_{schedule}.png")
+    plt.close()
 
 
 def update_and_check_grads(grads, grads_new):
@@ -183,7 +206,7 @@ def choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs):
     if schedule == "cosine-cycles":
         lr_schedule_onecycle = optax.cosine_decay_schedule(
             init_value=learn_rate_max,  # Maximum learning rate
-            decay_steps=epochs // 50,   # Number of epochs to decay over
+            decay_steps=epochs // 25,   # Number of epochs to decay over
             alpha=learn_rate_min / learn_rate_max  # Minimum learning rate as a fraction of max
         )
 
