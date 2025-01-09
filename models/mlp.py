@@ -1,6 +1,8 @@
 from flax import nnx
 import jax.numpy as jnp
 from modules.training_utils import hardtanh
+from jax import pmap
+from functools import partial
 
 class mlp(nnx.Module):
 
@@ -14,23 +16,25 @@ class mlp(nnx.Module):
         # 100 nanometers / step_size nanometer
         self.final_size = int(100 / step_size)
         
-        self.layer_sizes = [input_size] + list(hidden_sizes) + [self.final_size**2]
+        self.layer_sizes = [25] + list(hidden_sizes) + [self.final_size**2]
+
+        
         
         self.layers = [
             nnx.Linear(i, o, kernel_init=dense_init, bias_init=bias_init, rngs=rngs) 
             for i, o in zip(self.layer_sizes[:-1], self.layer_sizes[1:])]
     
-    
-    @nnx.jit
     def __call__(self, x):
-        x = jnp.reshape(x, (25,))
+
+        batch_size = x.shape[0]
+        x = jnp.reshape(x, (batch_size, 25)) 
 
         for en, layer in enumerate(self.layers):
             x = layer(x)
             x = hardtanh(x)
         
         # Reshape the output
-        x =  150.0 * jnp.reshape(x, (self.final_size, self.final_size))
+        x = 150.0 * jnp.reshape(x, (batch_size, self.final_size, self.final_size))
         
         return x
 

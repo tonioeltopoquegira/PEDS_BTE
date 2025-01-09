@@ -1,11 +1,12 @@
+
 import time
 import os
-
-os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"  
+import sys
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+
 import optax
 from flax import nnx
 
@@ -18,7 +19,7 @@ def train_model(model_name,
                 generator, 
                 lowfidsolver, 
                 learn_rate_max, learn_rate_min, schedule,  epochs, batch_size,
-                checkpointer, ckpt_dir): 
+                checkpointer): 
 
     n_devices = jax.device_count()
 
@@ -38,6 +39,7 @@ def train_model(model_name,
             residuals = (kappa_pred - kappas) 
 
             if batch_n == 0:
+                #clear
                 #print(f"Kappas Pred:{kappa_pred[0].item()}, Kappa Target: {kappas[0]}")
                 if epoch % 1 == 0:
                     print_generated(conductivities, conductivity_res, epoch, model_name, kappa_pred, kappas)
@@ -48,6 +50,31 @@ def train_model(model_name,
         
         return loss, grads
 
+
+    @partial(
+    pmap,
+    axis_name='devices',
+    static_broadcasted_argnums=(3, 4)  # Indices of `batch_n` and `epoch`
+    )
+    
+    def parallel_train_step(pores, conductivities, kappas, batch_n, epoch):
+        
+        # `train_step` must return loss and gradients
+        loss, grads = train_step(pores, conductivities, kappas, batch_n, epoch)
+        #return loss, grads
+        grads_tot = jax.tree_util.tree_map(lambda x: jax.lax.psum(x, axis_name='devices'), grads)
+        loss_tot =  jax.tree_util.tree_map(lambda x: jax.lax.psum(x, axis_name='devices'), loss)
+        return loss_tot, grads_tot
+    
+    #jax.pmap(parallel_train_step, axis_name="devices", static_broadcasted_argnums=(3,4))
+    
+    # Function to accumulate gradients
+    def accumulate_gradients(total_grads, new_grads):
+        if total_grads is None:
+            return new_grads
+        return jax.tree_util.tree_map(lambda x, y: x + y, total_grads, new_grads)
+
+    
     print("Training...")
 
     epoch_losses = np.zeros(epochs) # 
@@ -62,10 +89,31 @@ def train_model(model_name,
         total_loss = 0.0  # Initialize total loss for the epoch
         
 
-        batch_size = batch_size // n_devices
+        #batch_size = batch_size // n_devices
 
         for en, batch in enumerate(data_loader(*dataset_train, batch_size=batch_size)):
             
+            #pores_sharded, conductivities_sharded, kappas_sharded = batch
+
+            #print("Pores before parallelization", pores_sharded.shape)
+
+            #pores_sharded = pores.reshape(n_devices, -1, *pores.shape[1:])
+            #conductivities_sharded = conductivities.reshape(n_devices, -1, *conductivities.shape[1:])
+            #kappas_sharded = kappas.reshape(n_devices, -1, *kappas.shape[1:])
+            
+            # Perform parallel computation of loss and gradients
+            #losses, new_grads = parallel_train_step(pores_sharded, conductivities_sharded, kappas_sharded, en, epoch)
+
+            
+            # Sum gradients across devices
+            #grads = jax.tree_util.tree_map(lambda x: jax.lax.psum(x, axis_name='devices'), grads)
+            
+            # Accumulate gradients across batches
+            #grads = accumulate_gradients(grads, new_grads)
+        
+            # Accumulate loss
+            #total_loss += jnp.sum(losses)  # Sum losses across devices
+
             pores, conductivities, kappas = batch
 
             loss, grads_new = train_step(pores, conductivities, kappas, en, epoch)
@@ -77,6 +125,7 @@ def train_model(model_name,
         avg_loss = total_loss / dataset_train[0].shape[0]
 
         avg_val_loss, total_loss_perc = valid(dataset_valid, batch_size, generator, lowfidsolver)
+        #avg_val_loss, total_loss_perc = 0.0, 0.0
 
         # Print the average loss at the end of each epoch
         print(f"Epoch {epoch+1}/{epochs}, Training Loss: {avg_loss:.2f}, Validation Losses: [{avg_val_loss:.2f}, {total_loss_perc:.2f}%], Epoch time: {time.time() - epoch_time:.2f}s")
@@ -100,31 +149,17 @@ def train_model(model_name,
 
 def predict(generator, lowfidsolver, pores, conductivities):
 
-    conductivity_res = nnx.vmap(generator)(pores)
-    #conductivity_res = nnx.vmap(generator, in_axes=0, out_axes=0)(conductivities)
+    
+    # Process data through the generator (MLP)
+    conductivity_res = nnx.jit(generator)(pores)
+    #conductivity_res = nnx.vmap(generator, in_axes=1, out_axes=1)(conductivities)
 
     new_conductivity = conductivity_res+conductivities 
 
     new_conductivity = jnp.maximum(new_conductivity, 1e-5) # here we 
 
-    """if (
-        jnp.isinf(new_conductivity).any() 
-        or jnp.isnan(new_conductivity).any() 
-        or jnp.isclose(new_conductivity, 0).any()
-    ):
-        inf_indices = jnp.where(jnp.isinf(new_conductivity))
-        nan_indices = jnp.where(jnp.isnan(new_conductivity))
-        zero_indices = jnp.where(jnp.isclose(new_conductivity, 0))
-        #print(f"Infinite values found at indices: {inf_indices}")
-        #print(f"NaN values found at indices: {nan_indices}")
-        print(f"Zero values found at indices: {zero_indices}")
-        #raise ValueError("The computed conductivity contains infinity, NaN, or zero values.")"""
-    
     kappa = lowfidsolver(new_conductivity) 
 
-    """if jnp.isinf(kappa).any() or jnp.isnan(kappa).any():
-
-        raise ValueError("The computed kappa contains infinity or nan values.")"""
     
     return kappa, conductivity_res
 

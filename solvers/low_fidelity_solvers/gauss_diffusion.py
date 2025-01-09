@@ -2,8 +2,11 @@ import jax.numpy as jnp
 import jax.lax as lax
 from flax import nnx
 from jax import debug
+import jax
 
-@nnx.jit
+
+#@nnx.jit
+@jax.custom_vjp
 def gauss_solver(conductivity, iterations=1000):
     batch_size = conductivity.shape[0]
     N = conductivity.shape[1]
@@ -34,7 +37,6 @@ def gauss_solver(conductivity, iterations=1000):
         u_new = update_step(kappa_sum, kappa_r, kappa_l, kappa_u, kappa_d, u_r, u_l, u_u, u_d)
 
         # Debug print to identify NaN values
-        #debug.print("Iteration {i}, First NaN at {idx} in u_new",  i=_,  idx=jnp.where(jnp.isnan(u_new), size=1, fill_value=(-1, -1, -1)))
 
         
         return u_new, None
@@ -55,14 +57,66 @@ def update_step(kappa_sum, kappa_r, kappa_l, kappa_u, kappa_d, u_r, u_l, u_u, u_
         u_u * kappa_u
     ) / kappa_sum)
 
-    #debug.print("Boundary values - Top row: {x}, Bottom row: {y}", x=u_new[0, 0, :], y=u_new[0, -1, :])
     # Apply boundary conditions
     u_new = u_new.at[:,0,:].set(0.5)
     u_new = u_new.at[:, -1, :].set(u_new[:,0,:]-1.0)  # Top row
-    #u_new = u_new.at[:, -1, :].set(-1 / 2)  # Bottom row
+    
     
 
     return u_new
+
+
+@nnx.jit
+def gauss_solver_finalstep(diffusivity, u):
+
+    batch_size = diffusivity.shape[0]
+    N = diffusivity.shape[1]
+
+    kappa_r = jnp.roll(diffusivity, shift=1, axis=1)
+    kappa_l = jnp.roll(diffusivity, shift=-1, axis=1)
+    kappa_d = jnp.roll(diffusivity, shift=-1, axis=2)
+    kappa_u = jnp.roll(diffusivity, shift=1, axis=2)
+
+    kappa_sum = kappa_r+kappa_l+kappa_d+kappa_u
+
+    u_new = ((
+        jnp.roll(u, shift=1, axis=1) * kappa_r +
+        jnp.roll(u, shift=-1, axis=1) * kappa_l +
+        jnp.roll(u, shift=-1, axis=2) * kappa_d +
+        jnp.roll(u, shift=1, axis=2) * kappa_u
+    ) / kappa_sum)
+    
+
+    # Apply boundary conditions
+    u_new = u_new.at[:, 0, :].set(1 / 2)  # Top row
+    u_new = u_new.at[:, -1, :].set(u_new[:,0,:]-1.0)
+
+   
+    return u_new
+
+def gauss_fwd(diffusivity, iterations=1000):
+    Ts = gauss_solver(diffusivity, iterations=iterations)
+    return Ts, (diffusivity, Ts)
+
+@nnx.jit
+def gauss_bwd(res, grads):
+    """
+    Backward function for fourier_solver.
+    """
+    diffusivity, T_final = res
+    dL_dTs = grads
+   
+    # Compute VJP for the final step
+    _, vjp_final_step = jax.vjp(gauss_solver_finalstep, diffusivity, T_final)
+    
+    # Use the gradient from the output of the final step (dL_dkappas)
+    dL_ddiff, _ = vjp_final_step(dL_dTs)
+
+    return (dL_ddiff, None) 
+
+gauss_solver.defvjp(gauss_fwd, gauss_bwd)
+
+
 
 
 
