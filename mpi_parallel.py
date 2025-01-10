@@ -148,6 +148,8 @@ dataset_valid = [pores[8000:], base_conductivities[8000:], kappas[8000:]]
 dataset_train_local = distribute_dataset(dataset_train, rank, size)
 dataset_valid_local = distribute_dataset(dataset_valid, rank, size)
 
+print(dataset_train_local[0].shape)
+
 
 for epoch in range(epochs):
     epoch_time = time.time()
@@ -161,7 +163,7 @@ for epoch in range(epochs):
         # Compute loss and gradients locally
         local_loss, local_grads = train_step(generator, lowfidsolver, pores_local, conductivities_local, kappas_local)
 
-        #print(f"Batch {en} done for rank {rank}")
+        print(f"Batch {en} done for rank {rank}")
         
         # Accumulate loss across ranks
         total_loss += comm.allreduce(local_loss, op=MPI.SUM)

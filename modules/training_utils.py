@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import optax
 
+from mpi4py import MPI
+
 cmap = plt.cm.viridis
 
 # Define local data loader
@@ -140,6 +142,12 @@ def update_and_check_grads(grads, grads_new):
 
     return grads
 
+
+def accumulate_gradients(total_grads, new_grads):
+        if total_grads is None:
+            return new_grads
+        return jax.tree_util.tree_map(lambda x, y: x + y, total_grads, new_grads)
+
 def hardtanh(x):
     """Hard tanh activation: max(-1, min(1, x))."""
     return jnp.clip(x, -1, 1)
@@ -175,3 +183,41 @@ def choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs):
 
     
     return lr_schedule
+
+
+def distribute_dataset(dataset, rank, size):
+    """
+    Distribute dataset among MPI ranks.
+
+    Args:
+    - dataset: List of arrays [pores, conductivities, kappas].
+    - rank: Current MPI rank.
+    - size: Total number of MPI processes.
+
+    Returns:
+    - Local dataset for this rank.
+    """
+    pores, conductivities, kappas = dataset
+
+    # Determine chunk size per rank
+    n_samples = pores.shape[0]
+    chunk_size = n_samples // size
+
+    assert n_samples % size == 0, "Dataset size must be divisible by the number of MPI processes"
+
+    # Compute local data slice
+    start_idx = rank * chunk_size
+    end_idx = start_idx + chunk_size
+
+    # Slice the dataset for this rank
+    local_pores = pores[start_idx:end_idx]
+    local_conductivities = conductivities[start_idx:end_idx]
+    local_kappas = kappas[start_idx:end_idx]
+
+    return [local_pores, local_conductivities, local_kappas]
+
+def mpi_allreduce_gradients(local_grads, comm):
+    # Perform MPI Allreduce to accumulate gradients across all ranks
+    return jax.tree_util.tree_map(
+        lambda x: comm.allreduce(x, op=MPI.SUM), local_grads
+    )
