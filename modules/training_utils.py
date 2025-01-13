@@ -1,9 +1,11 @@
+import os
 import jax.numpy as jnp
 import jax
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import optax
+from flax import nnx
 
 from mpi4py import MPI
 
@@ -139,15 +141,15 @@ def update_and_check_grads(grads, grads_new):
     if has_nan_or_inf or has_zero_grads:
         raise ValueError("Gradient check failed.")
 
-
     return grads
 
-
+@nnx.jit
 def accumulate_gradients(total_grads, new_grads):
         if total_grads is None:
             return new_grads
         return jax.tree_util.tree_map(lambda x, y: x + y, total_grads, new_grads)
 
+@nnx.jit
 def hardtanh(x):
     """Hard tanh activation: max(-1, min(1, x))."""
     return jnp.clip(x, -1, 1)
@@ -221,3 +223,8 @@ def mpi_allreduce_gradients(local_grads, comm):
     return jax.tree_util.tree_map(
         lambda x: comm.allreduce(x, op=MPI.SUM), local_grads
     )
+
+def create_folders(model_name):
+    os.makedirs(f"figures/{model_name}", exist_ok=True)
+    os.makedirs(f"figures/{model_name}/training_evolution", exist_ok=True)
+    os.makedirs(f"figures/{model_name}/final_validation", exist_ok=True)

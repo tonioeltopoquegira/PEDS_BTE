@@ -7,9 +7,6 @@ import matplotlib.pyplot as plt
 from jax import profiler
 
 
-# SBUROOOOOOOOOOOOOOOOO
-
-
 # Import components
 from models.mlp import mlp
 from solvers.low_fidelity_solvers.lowfidsolver_class import lowfid
@@ -22,7 +19,7 @@ class PEDS(nnx.Module):
         super().__init__()
 
         self.step_size = 1
-        self.generator = mlp(input_size= 25, hidden_sizes=[5], step_size=self.step_size, rngs=rngs)
+        self.generator = mlp(input_size= 25, hidden_sizes=[5], output_size=self.step_size, rngs=rngs)
         self.lowfidsolver = lowfid(iterations=5000)
 
 

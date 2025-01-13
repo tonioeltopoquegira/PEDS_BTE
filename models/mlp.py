@@ -18,8 +18,6 @@ class mlp(nnx.Module):
         
         self.layer_sizes = [25] + list(hidden_sizes) + [self.final_size**2]
 
-        
-        
         self.layers = [
             nnx.Linear(i, o, kernel_init=dense_init, bias_init=bias_init, rngs=rngs) 
             for i, o in zip(self.layer_sizes[:-1], self.layer_sizes[1:])]

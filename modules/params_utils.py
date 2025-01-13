@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 # Function for initializing or restoring model parameters
-def initialize_or_restore_params(generator, model_name, base_dir="weights"):
+def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"):
     """
     Initialize or restore model parameters based on the existence of a checkpoint.
 
@@ -26,7 +26,7 @@ def initialize_or_restore_params(generator, model_name, base_dir="weights"):
     ckpt_dir = Path(base_dir) / model_name
     
     # Ensure checkpoint directory exists
-    if not ckpt_dir.exists():
+    if not ckpt_dir.exists() and rank==0:
         print(f"Checkpoint directory does not exist. Creating new directory at {ckpt_dir}.")
         ckpt_dir.mkdir(parents=True, exist_ok=True)
 
@@ -41,19 +41,23 @@ def initialize_or_restore_params(generator, model_name, base_dir="weights"):
             (d for d in ckpt_dir.iterdir() if d.is_dir()),  # Consider all directories
             key=lambda x: x.name.split('_')[-2] + '_' + x.name.split('_')[-1],  # Use the last two parts as timestamp
         )
-        print(f"Found last checkpoint: {last_checkpoint}")
+        if rank ==0:
+            print(f"Found last checkpoint: {last_checkpoint}")
         
         # Attempt to restore the state
         try:
             state_restored = checkpointer.restore(last_checkpoint , abstract_state)
-            print(f"Successfully restored state from {last_checkpoint}.")
+            if rank ==0:
+                print(f"Successfully restored state from {last_checkpoint}.")
         except Exception as e:
-            print(f"Restoration failed with error: {e}. Initializing new parameters.")
+            if rank ==0:
+                print(f"Restoration failed with error: {e}. Initializing new parameters.")
             state_restored = abstract_state  # Initialize new state
 
     except ValueError:
         # If no checkpoint is found
-        print("No checkpoints found. Initializing new parameters.")
+        if rank ==0:
+            print("No checkpoints found. Initializing new parameters.")
         state_restored = abstract_state  # Initialize new state
 
 
