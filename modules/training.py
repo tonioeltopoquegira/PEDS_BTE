@@ -30,9 +30,9 @@ def train_model(model_name,
     def train_step(pores, conductivities, kappas, epoch, batch, rank):
 
         def loss_fn(generator):
-            kappa_pred, conductivity_res = predict(generator, lowfidsolver, pores, conductivities, physics_bias)
+            kappa_pred, conductivity_res = predict(generator, lowfidsolver, pores, conductivities, physics_bias) # change here
             if batch == 0 and rank == 0:
-                print_generated(conductivities, conductivity_res, epoch, model_name, kappa_pred, kappas)
+                print_generated(conductivities, conductivity_res, epoch, model_name, kappa_pred, kappas) # change here
             residuals = kappa_pred - kappas
             fit_loss = jnp.sum(residuals**2)
 
@@ -66,7 +66,7 @@ def train_model(model_name,
         total_error_perc  = 0.0
         for en, val_batch in enumerate(data_loader(*dataset, batch_size=batch_size)):
             val_pores, val_conductivities, val_kappas = val_batch
-            kappa_val, _ = predict(generator, lowfidsolver, val_pores, val_conductivities, physics_bias)
+            kappa_val, _ = predict(generator, lowfidsolver, val_pores, val_conductivities, physics_bias) # here
 
             local_res = (kappa_val - val_kappas)**2
             local_error = jnp.abs(kappa_val - val_kappas)*100.0/jnp.abs(val_kappas) 
@@ -151,7 +151,7 @@ def train_model(model_name,
     save_params(generator, checkpointer)
     final_validation(generator, lowfidsolver, dataset_valid)
 
-def predict(generator, lowfidsolver, pores, conductivities, physics_bias):
+def predict(generator, lowfidsolver, pores, conductivities, physics_bias): # Here
 
     # Process data through the generator (MLP)
     conductivity_res = nnx.jit(generator)(pores)
