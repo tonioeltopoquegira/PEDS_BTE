@@ -123,4 +123,4 @@ gauss_solver.defvjp(gauss_fwd, gauss_bwd)
 if __name__ == "__main__":
 
     from utilities_lowfid import test_solver
-    test_solver(gauss_solver, num_obs=100, name_solver='gausseidel')
+    test_solver(gauss_solver, num_obs=100, name_solver='gausseidel', fd_check=True)

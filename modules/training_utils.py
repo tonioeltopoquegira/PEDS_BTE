@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import optax
 from flax import nnx
+import pandas as pd
 
 from mpi4py import MPI
 
@@ -72,7 +73,7 @@ def clip_gradients(grads, clip_value=1.0):
     return jax.tree_util.tree_map(lambda g: jnp.clip(g, -clip_value, clip_value), grads)
 
 
-def plot_learning_curves(epoch_losses, valid_losses, valid_perc_losses, schedule, ckpt_dir, epoch, learn_rate_max, learn_rate_min):
+def plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, ckpt_dir, epoch, learn_rate_max, learn_rate_min):
     """Plot the learning curve and validation percentage losses."""
     epochs = jnp.arange(epoch)
 
@@ -108,6 +109,43 @@ def plot_learning_curves(epoch_losses, valid_losses, valid_perc_losses, schedule
     plt.tight_layout()
     plt.savefig(f"figures/{ckpt_dir}/learning_curve_{schedule}.png")
     plt.close()
+
+    # Create a figure with two subplots
+    fig, axs = plt.subplots(1, 2, figsize=(15, 6))
+
+    # First subplot: Training and validation losses
+    axs[0].plot(epochs, epoch_times[:epoch], 'bo-', label='Epoch Speed')
+    axs[0].set_xlabel('Epoch')
+    axs[0].set_ylabel('Time (s)')
+    axs[0].set_title(f'Time to complete each epoch')
+    axs[0].legend()
+    axs[0].grid()
+
+    axs[1].plot(epoch_times[:epoch], valid_perc_losses[:epoch], 'ro-', label='Mean Percentual error')
+    # Highlight the epoch where valid_perc_loss hits 5%
+    for i, perc_loss in enumerate(valid_perc_losses[:epoch]):
+        if perc_loss <= 5.0:
+            axs[1].scatter(i, perc_loss, color='red', label=f'Hit 5% at Epoch {i}' if 'Hit' not in axs[1].get_legend_handles_labels()[1] else None)
+            break  # Stop after marking the first hit
+
+    axs[0].set_xlabel('Time (s)')
+    axs[0].set_ylabel('Mean Percentual Error')
+    axs[0].set_title(f'Mean Percentual Error over Time')
+    axs[0].legend()
+    axs[0].grid()
+
+    # Save the figure
+    plt.tight_layout()
+    plt.savefig(f"figures/{ckpt_dir}/learning_curve_{schedule}_time.png")
+    plt.close()
+
+
+
+
+
+
+
+
 
 
 def update_and_check_grads(grads, grads_new):
@@ -225,6 +263,38 @@ def mpi_allreduce_gradients(local_grads, comm):
     )
 
 def create_folders(model_name):
+    os.makedirs(f"data/results/{model_name}", exist_ok=True)
     os.makedirs(f"figures/{model_name}", exist_ok=True)
     os.makedirs(f"figures/{model_name}/training_evolution", exist_ok=True)
     os.makedirs(f"figures/{model_name}/final_validation", exist_ok=True)
+
+def choose_activation(activation):
+
+    if activation == "relu":
+        return nnx.relu
+    if activation == "hardtanh":
+        return hardtanh
+    
+def final_validation(model, model_name, dataset):
+    pores, cond, kappa = dataset
+    pores = pores.reshape((pores.shape[0], 25))
+    kappa_pred = model(pores)
+    kappa_pred = kappa_pred.squeeze(-1)
+    error = np.abs(kappa_pred - kappa) / np.abs(kappa_pred)
+
+    # Create a DataFrame with results
+    results_df = pd.DataFrame({
+        "pores": list(pores),
+        "kappa_true": kappa,
+        "kappa_pred": kappa_pred,
+        "error": error
+    })
+
+    # Define the output directory and ensure it exists
+    output_dir = f"data/results/{model_name}/"
+    
+    # Save the dataset to a CSV file
+    output_path = os.path.join(output_dir, "error_results.csv")
+    results_df.to_csv(output_path, index=False)
+    
+    print(f"Results saved to {output_path}")

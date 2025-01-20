@@ -9,12 +9,17 @@ from modules.params_utils import initialize_or_restore_params
 from modules.training import train_model
 
 from models.mlp import mlp
-from solvers.low_fidelity_solvers.lowfidsolver_class import lowfid
+from models.peds import PEDS
+import shutil
+
 
 # Initialize MPI
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()  # Current process ID
 size = comm.Get_size()  # Total number of processes
+
+if rank == 0:
+        print(f"Training on {size} devices...")
 
 # Ingest data <- Here we will do active learning
 full_data = jnp.load("data/highfidelity/high_fidelity_10012_20steps.npz", allow_pickle=True)
@@ -26,26 +31,23 @@ base_conductivities = jnp.asarray(full_data['conductivity'], dtype=jnp.float32)
 # Create dataset
 dataset_train = [pores[:8000], base_conductivities[:8000], kappas[:8000]]
 dataset_valid = [pores[8000:], base_conductivities[8000:], kappas[8000:]]
-
-# Create model
-key = nnx.Rngs(42)
-generator = mlp(input_size= 25, hidden_sizes=[32, 64, 128], step_size=5, rngs=key)
+        
+# Model creation and name (experiment name)
+model_name = "PEDS_gauss_residual"
+model = PEDS(resolution = 20, learn_residual= True, hidden_sizes= [32, 64, 128], activation="hardtanh", solver="gauss") # parameters: 60k
+#rngs = nnx.Rngs(42)
+#model = mlp(layer_sizes=[25, 32, 64, 128, 128, 256, 1], activation="relu", rngs=rngs) # 
 
 # Params initializing or restoring
-generator, checkpointer, ckpt_dir = initialize_or_restore_params(generator, model_name='peds_PI', rank=rank)
-
-# Low Fidelity Solver
-lowfidsolver = lowfid(solver='gauss', iterations=1000)
+model, checkpointer, ckpt_dir = initialize_or_restore_params(model, model_name, rank=rank)
 
 train_model(
-    model_name='peds_PI',
+    model_name=model_name,
     dataset_train=dataset_train,
     dataset_valid=dataset_valid,
-    generator=generator, 
-    lowfidsolver=lowfidsolver, 
-    physics_bias= 'geom-cap', # "loss", 
-    learn_rate_min=5e-5, learn_rate_max=5e-4, schedule='cosine-cycles', 
-    epochs=3000, batch_size=200,
+    model=model,
+    learn_rate_min=5e-5, learn_rate_max=5e-4, schedule='constant', 
+    epochs=400, batch_size=200,
     checkpointer=checkpointer
 )
 

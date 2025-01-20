@@ -59,7 +59,7 @@ def plot_temperature(base_conductivities, Temperatures, name_solver):
     axes[2].contour(masked_T2, levels=contour_levels2, colors='white', linewidths=0.5)
 
     plt.tight_layout()
-    temp_save_path = f"figures/test_solvers/{name_solver}_temperatures_and_flux.png"
+    temp_save_path = f"figures/test_solvers/{name_solver}_temperatures_and_flux_SIUUUM.png"
     plt.savefig(temp_save_path)
     plt.close()
 
@@ -103,7 +103,7 @@ def plot_gradients(base_conductivities, gradients, name_solver):
     
 
 
-def test_solver(solver, num_obs, name_solver):
+def test_solver(solver, num_obs, name_solver, fd_check=False):
 
     full_data = np.load("data/highfidelity/high_fidelity_10012_100steps.npz", allow_pickle=True)
 
@@ -113,7 +113,7 @@ def test_solver(solver, num_obs, name_solver):
 
     pores0 = jnp.zeros((1,5,5))
     kappas0 = 150.0
-    base0 = jnp.ones((1, 100,100))*150.0
+    base0 = jnp.ones((1, 100, 100))*150.0
 
     # Append the 0 observation as first of the dataset
     pores = jnp.vstack([pores0, pores])  # Add pores0 at the beginning
@@ -126,7 +126,7 @@ def test_solver(solver, num_obs, name_solver):
 
     # Perform forward and measure speed for num_obs observations
     t = time.time()
-    #temperatures = solver(base_conductivities[:num_obs])
+    temperatures = solver(base_conductivities[:num_obs])
     print(f"Final time: {time.time()-t} after computing {num_obs} observations on step size 100")
 
     print("Check Gradients")
@@ -152,6 +152,47 @@ def test_solver(solver, num_obs, name_solver):
 
     # Plot and save the first three gradients
     plot_gradients(base_conductivities, grads[:3].squeeze(), name_solver)
+
+    if fd_check:
+        print("Finite Difference Check")
+        cond_check = base_conductivities[150]
+        cond_check = jnp.reshape(cond_check, (1, cond_check.shape[0], cond_check.shape[0]))
+        fd_grad = compute_fd_gradient(solver, cond_check, epsilon=1e-9) # 1e-9
+
+
+
+        # finally sum all of them or accumulate all (i,j) ansd give the full gradient. So every grad in fd_grad is gradient wrt a entry of cond
+
+        grads = jax.grad(lambda cond: jnp.sum(solver(cond)))(cond_check)
+
+        grads = jnp.reshape(grads, (100,100))
+        fd_grad = jnp.reshape(fd_grad, (100, 100))
+        # print both of them in a box plot
+        # Visualization: Box Plot
+        # Visualization: Heatmaps
+        # Set up the figure and axes
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6), constrained_layout=True)
+
+        # Heatmap for Finite Difference Gradient
+        axes[0].set_title("Finite Difference Gradient (Total Effect)")
+        img1 = axes[0].imshow(fd_grad, cmap='viridis', interpolation='nearest')
+        fig.colorbar(img1, ax=axes[0], label='Gradient Value')
+        axes[0].set_xlabel("Column Index")
+        axes[0].set_ylabel("Row Index")
+
+        # Heatmap for Automatic Differentiation Gradient
+        axes[1].set_title("Automatic Differentiation / Custom Adjoint Gradient")
+        img2 = axes[1].imshow(grads, cmap='viridis', interpolation='nearest')
+        fig.colorbar(img2, ax=axes[1], label='Gradient Value')
+        axes[1].set_xlabel("Column Index")
+        axes[1].set_ylabel("Row Index")
+
+        # Show the plots
+        grad_save_path = f"figures/test_solvers/{name_solver}_finite_diff_check.png"
+        plt.savefig(grad_save_path)
+        plt.show()
+        plt.close()
+
     
 
 def check_gradients(gradients):
@@ -162,3 +203,15 @@ def check_gradients(gradients):
         print("Warning: Gradients contain Inf values.")
     return gradients
 
+# Finite Difference Gradient Computation
+def compute_fd_gradient(solver, cond_check, epsilon=1e-6):
+    total_effect = jnp.zeros_like(cond_check)  # Initialize the total gradient (20x20)
+    for i in range(cond_check.shape[0]):
+        for j in range(cond_check.shape[1]):
+            # Perturb one entry at (i, j)
+            perturbed = cond_check.at[i, j].add(epsilon)
+            # Compute the directional derivative caused by this perturbation
+            delta_T = (solver(perturbed) - solver(cond_check)) / epsilon
+            # Accumulate the total effect
+            total_effect += delta_T
+    return total_effect
