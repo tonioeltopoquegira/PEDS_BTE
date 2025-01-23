@@ -8,12 +8,13 @@ import numpy as np
 
 step_size = 1
 N = int(100 / step_size)
-size_square = int(10 * 1 / step_size)
-half_size_square = size_square // 2
-subgrid = jnp.ones((size_square, size_square)) * 1e-9
-indices = jnp.stack(jnp.meshgrid(jnp.arange(5), jnp.arange(5)), axis=-1).reshape(-1, 2)
 
-def optimized_conductivity_grid_jax(pores, N, indices, size_square, half_size_square, subgrid):
+def optimized_conductivity_grid_jax(pores, N, indices, step_size):
+
+    size_square = int(10 * 1 / step_size)
+    half_size_square = size_square // 2
+    subgrid = jnp.ones((size_square, size_square)) * 1e-9
+    indices = jnp.stack(jnp.meshgrid(jnp.arange(5), jnp.arange(5)), axis=-1).reshape(-1, 2)
 
     batch_size = pores.shape[0]
     pores = jnp.reshape(pores, [batch_size, 5, 5])

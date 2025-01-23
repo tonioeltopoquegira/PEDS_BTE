@@ -4,6 +4,7 @@ from flax import nnx
 from pathlib import Path
 from datetime import datetime
 import shutil
+import numpy as np
 
 
 # Function for initializing or restoring model parameters
@@ -27,9 +28,7 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
     ckpt_dir = Path(base_dir) / model_name
     
     # Ensure checkpoint directory exists
-    if not ckpt_dir.exists() and rank==0:
-        print(f"Checkpoint directory does not exist. Creating new directory at {ckpt_dir}.")
-        ckpt_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     # Create the checkpointer
     checkpointer = ocp.StandardCheckpointer()
@@ -47,10 +46,10 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
         
         # Attempt to restore the state
         try:
-            last_checkpoint = os.path.abspath(last_checkpoint)
-            state_restored = checkpointer.restore(last_checkpoint , abstract_state)
+            checkpoint_to_restore = os.path.abspath(last_checkpoint)
+            state_restored = checkpointer.restore(checkpoint_to_restore , abstract_state)
             if rank ==0:
-                print(f"Successfully restored state from {last_checkpoint}.")
+                print(f"Successfully restored state from {last_checkpoint} and training curves")
         except Exception as e:
             if rank ==0:
                 print(f"Restoration failed with error: {e}. Initializing new parameters.")
@@ -65,7 +64,8 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
 
     # Merge graph definition with restored or initialized state
     model = nnx.merge(graphdef, state_restored)
-    return model, checkpointer, ckpt_dir
+
+    return model, checkpointer
 
 def save_params(model_name, generator, checkpointer, epoch=None):
 

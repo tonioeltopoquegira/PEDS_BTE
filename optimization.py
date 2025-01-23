@@ -1,13 +1,15 @@
 import numpy as np
 from models.mlp import mlp
-from flax import nnx
+from models.peds import PEDS
 from modules.params_utils import initialize_or_restore_params
 
 
 # Model to be used for optimization
-model_name = "MLP_baseline"
-rngs = nnx.Rngs(42)
-model = mlp(layer_sizes=[25, 32, 64, 128, 128, 256, 1], activation="relu", rngs=rngs)
+model_name = "PEDS_gauss_residual"
+#rngs = nnx.Rngs(42)
+#model = mlp(layer_sizes=[25, 32, 64, 128, 128, 256, 1], activation="relu", rngs=rngs)
+model = PEDS(resolution = 20, learn_residual= True, hidden_sizes= [32, 64, 128], activation="hardtanh", solver="gauss") # parameters: 60k
+
 model, checkpointer, ckpt_dir = initialize_or_restore_params(model, model_name, rank=0)
 
 import random
@@ -25,7 +27,7 @@ toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.att
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
 def evaluate(individual):
-    
+    base_conductivity = 
     return np.abs(model(individual)-17.0),  # Must return a tuple
 
 def cxTwoPointCopy(ind1, ind2):

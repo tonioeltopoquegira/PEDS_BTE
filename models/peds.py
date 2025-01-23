@@ -20,8 +20,10 @@ class PEDS(nnx.Module):
 
         # Create model
         key = nnx.Rngs(42)
+
+        last_activation = True
+        self.generator = mlp(layer_sizes=self.layer_sizes, activation = activation, rngs=key, last_activation=last_activation) # 
         
-        self.generator = mlp(layer_sizes=self.layer_sizes, activation = activation, rngs=key)
 
         # Low Fidelity Solver
         self.lowfidsolver = lowfid(solver=solver, iterations=1000)
@@ -48,7 +50,9 @@ class PEDS(nnx.Module):
             
             conductivity_final = conductivity_generated+conductivities 
 
-            conductivity_final = jnp.maximum(conductivity_final, 1e-4)
+            conductivity_final = jnp.maximum(conductivity_final, 1e-7)
+        else:
+            conductivity_final = conductivity_generated
 
         kappa = self.lowfidsolver(conductivity_final) 
 

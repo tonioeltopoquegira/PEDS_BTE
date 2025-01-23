@@ -98,7 +98,12 @@ if  __name__ == "__main__":
 
     #pores = np.random.rand(5, 5) < 0.5
 
-    pores = np.zeros((5,5))
-    pores[0,0] = 1
+    pores = np.array([1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1])
+
+    pores = pores.reshape((5,5))
     
     results = highfidelity_solver(pores, save_show_res=True)
+
+    kappa, _, _ = results
+
+    print(kappa)

@@ -5,7 +5,7 @@ from modules.training_utils import choose_activation
 
 class mlp(nnx.Module):
 
-    def __init__(self, layer_sizes:list, activation:str, rngs:nnx.Rngs):
+    def __init__(self, layer_sizes:list, activation:str, rngs:nnx.Rngs, last_activation=False):
         
         super().__init__()
 
@@ -14,7 +14,7 @@ class mlp(nnx.Module):
         if activation == "relu":
             bias_init = nnx.initializers.constant(1.0)
             
-
+        self.last_activation = last_activation
         self.layers = [
             nnx.Linear(i, o, kernel_init=dense_init, bias_init=bias_init, rngs=rngs) 
             for i, o in zip(layer_sizes[:-1], layer_sizes[1:])]
@@ -25,8 +25,6 @@ class mlp(nnx.Module):
         for en, layer in enumerate(self.layers):
             x = layer(x)
             x = self.activation(x)
-
-        # remember to move the last layer out for MLP_baseline
 
         return x
 
