@@ -18,17 +18,17 @@ def train_model(model_name,
                 dataset_train, dataset_valid, 
                 model,
                 learn_rate_max, learn_rate_min, schedule,  epochs, batch_size,
-                checkpointer): 
+                checkpointer,
+                print_every = 100): 
 
     
     create_folders(model_name)
 
     try:
         curves = np.load(f"data/results/{model_name}/training_curves.npz", allow_pickle=True)
-        n_past_epoch = len(curves['epoch_times'])+1
+        n_past_epoch = len(curves['epoch_times'])
     except Exception as e:
         n_past_epoch = 0
-    print(f"Past epochs: {n_past_epoch}")
 
     # Scheduler optimizer
     lr_schedule = choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs)
@@ -38,7 +38,7 @@ def train_model(model_name,
         
         if isinstance(model, PEDS):
             def loss_fn(model):
-                kappa_pred, conductivity_res = model(pores, conductivities) # change here
+                kappa_pred, conductivity_res = model(pores) # change here
                 if (epoch+1) % 50 == 0 and batch == 0 and rank == 0:
                     print_generated(model, conductivities, conductivity_res, epoch+1+n_past_epoch, model_name, kappa_pred, kappas) # change here
                 residuals = kappa_pred - kappas
@@ -73,7 +73,7 @@ def train_model(model_name,
             val_pores, val_conductivities, val_kappas = val_batch
 
             if isinstance(model, PEDS):
-                kappa_val, _ = model(val_pores, val_conductivities) # here
+                kappa_val, _ = model(val_pores) # here
             else:
                 val_pores_reshaped = jnp.reshape(val_pores, (val_pores.shape[0], 25))
                 kappa_val = model(val_pores_reshaped)
@@ -95,6 +95,9 @@ def train_model(model_name,
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()  # Current process ID
     size = comm.Get_size()  # Total number of processes
+
+    if rank == 0:
+        print(f"Past epochs: {n_past_epoch}")
 
     epoch_losses = np.zeros(epochs) 
     valid_losses = np.zeros(epochs)
@@ -137,7 +140,7 @@ def train_model(model_name,
         valid_losses[epoch] = avg_val_loss
         valid_perc_losses[epoch] = total_loss_perc
 
-        if rank == 0 and (epoch+1)%10 == 0:
+        if rank == 0 and (epoch+1)%print_every == 0:
             print(f"Epoch {epoch+1}/{epochs}, Training Losses: [{avg_loss:.2f}] , Validation Losses: [{avg_val_loss:.2f}, {total_loss_perc:.2f}%], Epoch time: {time.time() - epoch_time:.2f}s")
         
         sys.stdout.flush() 

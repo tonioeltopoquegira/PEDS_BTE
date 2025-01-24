@@ -305,7 +305,7 @@ def final_validation(model, model_name, dataset):
     pores, cond, kappa = dataset
     pores = pores.reshape((pores.shape[0], 25))
     if "PEDS" in model_name:
-        kappa_pred, _ = model(pores, cond)
+        kappa_pred, _ = model(pores)
     
     else:
         kappa_pred = model(pores)

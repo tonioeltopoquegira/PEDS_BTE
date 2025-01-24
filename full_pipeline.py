@@ -29,14 +29,14 @@ kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32)
 base_conductivities = jnp.asarray(full_data['conductivity'], dtype=jnp.float32)
 
 # Create dataset
-dataset_train = [pores[:800], base_conductivities[:800], kappas[:800]]
-dataset_valid = [pores[-500:], base_conductivities[-500:], kappas[-500:]]
+dataset_train = [pores[:8000], base_conductivities[:8000], kappas[:8000]]
+dataset_valid = [pores[8000:], base_conductivities[8000:], kappas[8000:]]
         
 # Model creation and name (experiment name)
-model_name = "MLP_baseline"
-#model = PEDS(resolution = 20, learn_residual= True, hidden_sizes= [32, 64, 128], activation="hardtanh", solver="gauss") # parameters: 60k
-rngs = nnx.Rngs(42)
-model = mlp(layer_sizes=[25, 32, 64, 128, 128, 256, 1], activation="relu", rngs=rngs) # 
+model_name = "PEDS_attempt"
+model = PEDS(resolution = 20, learn_residual= True, hidden_sizes= [32, 64, 128], activation="hardtanh", solver="gauss") # parameters: 60k
+#rngs = nnx.Rngs(42)
+#model = mlp(layer_sizes=[25, 32, 64, 128, 128, 256, 1], activation="relu", rngs=rngs) # 
 
 # Params initializing or restoring
 model, checkpointer = initialize_or_restore_params(model, model_name, rank=rank)
@@ -48,12 +48,13 @@ train_model(
     model=model,
     learn_rate_min=5e-5, learn_rate_max=5e-4, schedule='constant', 
     epochs=100, batch_size=100,
-    checkpointer=checkpointer
+    checkpointer=checkpointer,
+    print_every=1
 )
 
 
 
-# check print_generatd gives right result
+# DEBUG: print_generatd, training consecutivi, all include model
 # optimization insert the converter
 # sistema tutto training (raggruppa in modules)
 
