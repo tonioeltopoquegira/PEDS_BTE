@@ -36,7 +36,7 @@ dataset_train = [pores[:8000], base_conductivities[:8000], kappas[:8000]]
 dataset_valid = [pores[8000:], base_conductivities[8000:], kappas[8000:]]
         
 # Model creation and name (experiment name)
-model_name = "PEDS_gauss_less_params"
+model_name = "PEDS_fourier"
 model = PEDS(resolution = 20, learn_residual= False, hidden_sizes= [32, 64], activation="relu", solver="gauss") # parameters: 60k
 #rngs = nnx.Rngs(42)
 #model = mlp(layer_sizes=[25, 32, 64, 128, 128, 256, 1], activation="relu", rngs=rngs) # 
