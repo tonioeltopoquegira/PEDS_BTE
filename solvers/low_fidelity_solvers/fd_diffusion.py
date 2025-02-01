@@ -68,14 +68,6 @@ def laplacian(conductivity, h=1.0):
 
     L = -(L_batch.T @ C_batch @ L_batch)
 
-    """L_base_coo = L_batch.tocoo()
-    plt.scatter(L_base_coo.col, L_base_coo.row, s=1, c='black', marker='.')
-    plt.xlabel("Column Index")
-    plt.ylabel("Row Index")
-    plt.title("Inside Forward L_batch")
-    plt.gca().invert_yaxis()  # Invert y-axis to match matrix representation
-    plt.show() """
-
     return L, Kx, Ky
 
 @jax.custom_vjp
@@ -83,7 +75,7 @@ def fd_diffusion(conductivity):
 
     batch_size, N_cells, _ = conductivity.shape 
 
-    L, _, _ = laplacian(conductivity)
+    L, _, _  = laplacian(conductivity)
 
     #assert np.allclose(L[0].toarray(), L[0].toarray().transpose()), "L is not symmetric!"
     #print("Assertion passed! L is Self-Adjoint!!")
@@ -121,7 +113,7 @@ def fd_bwd(res, dl_dT):
 
     lambd = np.reshape(lambd, K.shape)
 
-    dL_dKy = -(Ky.T @ Ky)
+    dL_dKy = (Ky.T @ Ky)
     dL_dKx = (Kx.T @ Kx)
 
     dL_dKy = sp.block_diag([dL_dKy] * batch_size, format = 'csr')
@@ -135,7 +127,7 @@ def fd_bwd(res, dl_dT):
     rhs_0 = rhs_0.reshape(K.shape)
     rhs_1 = rhs_1.reshape(K.shape)
 
-    df_dK = - lambd * (rhs_1+rhs_0)
+    df_dK = - lambd * (-rhs_1+rhs_0)
 
     return ( df_dK,)
 

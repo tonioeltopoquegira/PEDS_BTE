@@ -61,8 +61,8 @@ def print_generated(model, conductivities, conductivity_res, epoch, model_name, 
                 fontsize=10, color='black', ha='left', va='center'
             )
 
-            # Create a single colorbar for all subplots (linked to final conductivity)
-            fig.colorbar(im3, ax=axes[:, :3], orientation='horizontal', label='Conductivity')
+        # Create a single colorbar for all subplots (linked to final conductivity)
+        fig.colorbar(im3, ax=axes[:, :3], orientation='horizontal', label='Conductivity')
 
     else:
         # Create the figure and axes for 3x3 subplots
@@ -94,7 +94,7 @@ def print_generated(model, conductivities, conductivity_res, epoch, model_name, 
             )
 
             # Create a single colorbar for all subplots (linked to final conductivity)
-            fig.colorbar(im2, ax=axes[:, :3], orientation='horizontal', label='Conductivity')
+        fig.colorbar(im2, ax=axes[:3, :], orientation='vertical', label='Conductivity')
 
     
     # Save the figure
@@ -289,7 +289,7 @@ def mpi_allreduce_gradients(local_grads, comm):
     )
 
 def create_folders(model_name):
-    os.makedirs(f"data/results/{model_name}", exist_ok=True)
+    os.makedirs(f"data/training_results/{model_name}", exist_ok=True)
     os.makedirs(f"figures/models/{model_name}", exist_ok=True)
     os.makedirs(f"figures/models/{model_name}/training_evolution", exist_ok=True)
     os.makedirs(f"figures/models/{model_name}/final_validation", exist_ok=True)
@@ -321,7 +321,7 @@ def final_validation(model, model_name, dataset):
     })
 
     # Define the output directory and ensure it exists
-    output_dir = f"data/results/{model_name}/"
+    output_dir = f"data/training_results/{model_name}/"
     
     # Save the dataset to a CSV file
     output_path = os.path.join(output_dir, "error_results.csv")
@@ -331,7 +331,7 @@ def final_validation(model, model_name, dataset):
 
     print("Error Validation results")
 
-    results = pd.read_csv(f"data/results/{model_name}/error_results.csv")
+    results = pd.read_csv(f"data/training_results/{model_name}/error_results.csv")
 
     # Plot KDE for 'kappa_true' and 'kappa_pred'
     plt.figure(figsize=(10, 6))
@@ -400,4 +400,49 @@ def final_validation(model, model_name, dataset):
     plt.tight_layout()
     plt.savefig(f"figures/models/{model_name}/final_validation/binned_error_distribution.png")
     plt.close()
+
+
+def update_curves(model_name):
+    try:
+        curves = np.load(f"data/training_results/{model_name}/training_curves.npz", allow_pickle=True)
+        n_past_epoch = len(curves['epoch_times'])
+    except Exception as e:
+        n_past_epoch = 0
+    
+    return n_past_epoch
+
+def plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min):
+    try:
+        curves = np.load(f"data/training_results/{model_name}/training_curves.npz", allow_pickle=True)
+        
+        # Concatenate only new data
+        epoch_times_tot = np.concatenate([curves['epoch_times'][:n_past_epoch], epoch_times[:epoch]])
+        epoch_losses_tot = np.concatenate([curves['epoch_losses'][:n_past_epoch], epoch_losses[:epoch]])
+        valid_losses_tot = np.concatenate([curves['valid_losses'][:n_past_epoch:], valid_losses[:epoch]])
+        valid_perc_losses_tot = np.concatenate([curves['valid_perc_losses'][:n_past_epoch:], valid_perc_losses[:epoch]])
+        
+        # Calculate total epochs
+        epoch_tot = len(epoch_losses_tot)
+        
+        # Plot and save
+        plot_learning_curves(epoch_times_tot, epoch_losses_tot, valid_losses_tot, valid_perc_losses_tot, schedule, model_name, epoch_tot, learn_rate_max, learn_rate_min)
+        np.savez(
+            f"data/training_results/{model_name}/training_curves.npz", 
+            epoch_times=epoch_times_tot, 
+            epoch_losses=epoch_losses_tot,
+            valid_losses=valid_losses_tot, 
+            valid_perc_losses=valid_perc_losses_tot,
+            allow_pickle=True
+        )
+    except Exception as e:
+        print(f"No training curves file: {e}. Creating new one.")
+        plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, model_name, epoch, learn_rate_max, learn_rate_min)
+        np.savez(
+            f"data/training_results/{model_name}/training_curves.npz", 
+            epoch_times=epoch_times, 
+            epoch_losses=epoch_losses,
+            valid_losses=valid_losses, 
+            valid_perc_losses=valid_perc_losses,
+            allow_pickle=True
+        )
 

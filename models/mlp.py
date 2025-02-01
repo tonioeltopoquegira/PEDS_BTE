@@ -10,9 +10,11 @@ class mlp(nnx.Module):
         super().__init__()
 
         dense_init = nnx.initializers.xavier_normal()
-        bias_init = nnx.initializers.constant(0.0)
+
         if activation == "relu":
             bias_init = nnx.initializers.constant(1.0)
+        else:
+            bias_init = nnx.initializers.constant(0.0)
             
         self.last_activation = last_activation
         self.layers = [
@@ -22,9 +24,15 @@ class mlp(nnx.Module):
         self.activation = choose_activation(activation)
     
     def __call__(self, x):
-        for en, layer in enumerate(self.layers):
+        for en, layer in enumerate(self.layers[:-1]):
             x = layer(x)
             x = self.activation(x)
+        
+        x = self.layers[-1](x)
+
+        if self.last_activation:
+            x = self.activation(x)
+
 
         return x
 

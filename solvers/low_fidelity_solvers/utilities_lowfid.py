@@ -146,18 +146,18 @@ def test_solver(solver, num_obs, name_solver, fd_check=False):
         #return jnp.sum(Ts**2)  # Interesting for gradient evaluation or jnp.sum(Ts)
 
     t_backward = time.time()
-    value, grads = jax.value_and_grad(loss)(base_conductivities[:3])
+    #value, grads = jax.value_and_grad(loss)(base_conductivities[:3])
     t_backward = time.time() - t_backward
     print(f"Backward computation time: {t_backward} seconds.")
 
     # Plot and save the first three gradients
-    plot_gradients(base_conductivities, grads[:3].squeeze(), name_solver)
+    #plot_gradients(base_conductivities, grads[:3].squeeze(), name_solver)
 
     if fd_check:
         print("Finite Difference Check")
-        cond_check = base_conductivities[150]
+        cond_check = base_conductivities[2]
         cond_check = jnp.reshape(cond_check, (1, cond_check.shape[0], cond_check.shape[0]))
-        fd_grad = compute_fd_gradient(solver, cond_check, epsilon=1e-9) # 1e-9
+        fd_grad = compute_fd_gradient(solver, cond_check, epsilon=1e-11) # 1e-9
 
 
 

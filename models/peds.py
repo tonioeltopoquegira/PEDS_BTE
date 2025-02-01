@@ -23,18 +23,14 @@ class PEDS(nnx.Module):
         # Create model
         key = nnx.Rngs(42)
 
-        last_activation = True
-        self.generator = mlp(layer_sizes=self.layer_sizes, activation = activation, rngs=key, last_activation=last_activation) # 
+        self.generator = mlp(layer_sizes=self.layer_sizes, activation = activation, rngs=key, last_activation=True) # 
         
-
         # Low Fidelity Solver
         self.lowfidsolver = lowfid(solver=solver, iterations=1000)
     
     def __call__(self, pores): # Here
 
         batch_size = pores.shape[0]
-
-        conductivities = optimized_conductivity_grid_jax(pores, self.resolution)
 
         pores = jnp.reshape(pores, (batch_size, 25)) 
 
@@ -49,16 +45,12 @@ class PEDS(nnx.Module):
             conductivity_generated *= 150.0
 
         if self.learn_residual:
-
-            if self.activation == "relu":
-                conductivity_generated = - conductivity_generated
-            
+            conductivities = optimized_conductivity_grid_jax(pores, self.resolution)
             conductivity_final = conductivity_generated+conductivities 
-
-            conductivity_final = jnp.maximum(conductivity_final, 1e-7)
         else:
             conductivity_final = conductivity_generated
 
+        conductivity_final = jnp.maximum(conductivity_final, 1e-7)
         kappa = self.lowfidsolver(conductivity_final) 
 
         

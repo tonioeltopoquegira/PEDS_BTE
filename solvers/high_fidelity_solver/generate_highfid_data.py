@@ -7,7 +7,7 @@ import re
 
 # Number of data points to generate
 num_data_points = 1
-results = {'pores': [], 'kappa_bte': [], 'temp_bte': [], 'flux_bte': []}
+results = {'pores': [], 'kappas': []}
 
 save_dir = "data/highfidelity"
 os.makedirs(save_dir, exist_ok=True)
@@ -45,7 +45,7 @@ for i in range(len(existing_results['pores']), len(existing_results['pores']) + 
     key = jax.random.PRNGKey(i + existing_count)
     
     # Generate pores as a 2D boolean array, then convert to int
-    pores = (jax.random.uniform(key, (5, 5)) < 0.5).astype(int)
+    pores = (jax.random.uniform(key, (5, 5)) < 0.25).astype(int)
 
 
     # Run high fidelity solver with 2D `pores`
@@ -58,9 +58,7 @@ for i in range(len(existing_results['pores']), len(existing_results['pores']) + 
 
     # Append each result to the corresponding key in the dictionary
     results['pores'].append(pores_flat)
-    results['kappa_bte'].append(kappa_bte)
-    results['temp_bte'].append(temp_bte_flat)
-    results['flux_bte'].append(flux_bte_flat)
+    results['kappas'].append(kappa_bte)
     
 
 # Save results if any new points were generated

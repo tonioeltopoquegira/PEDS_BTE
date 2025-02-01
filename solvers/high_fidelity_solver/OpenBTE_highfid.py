@@ -12,8 +12,6 @@ from openbte.objects import BoundaryConditions, OpenBTEResults, EffectiveThermal
 
 def highfidelity_solver(pores, save_show_res = False):
 
-    print(pores)
-
     # cancel any previous geometry saved 
 
     # Create Material
@@ -63,7 +61,7 @@ def highfidelity_solver(pores, save_show_res = False):
     results = OpenBTEResults(mesh=mesh,material = mat,solvers={'bte':bte})
     
     results.save()
-    results.show()
+    #results.show()
 
     results = OpenBTEResults.load()
 
@@ -98,12 +96,29 @@ if  __name__ == "__main__":
 
     #pores = np.random.rand(5, 5) < 0.5
 
-    pores = np.array([1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1])
+    import pandas as pd
 
-    pores = pores.reshape((5,5))
+    model_name = "PEDS_gauss"
+
+    results = pd.read_csv(f"data/optimization/{model_name}/evolutionary_geometries.csv")
+    result_new = pd.DataFrame(columns=["kappa_target", "geometries", "kappa_BTE"])
+
+    kappa_BTE = []
+
+    for geom, k in zip(results['geometries'], results['kappa_target']):
+
+        # Convert to list of integers
+        hof_array = geom.strip("\"").strip("[]")  # Remove quotes and brackets
+        hof_array = np.array([int(x) for x in hof_array.split(", ")]) 
+
+        pores = hof_array.reshape((5,5))
     
-    results = highfidelity_solver(pores, save_show_res=True)
+        results = highfidelity_solver(pores, save_show_res=False)
 
-    kappa, _, _ = results
+        kappa, _, _ = results
 
-    print(kappa)
+        print(k)
+
+        result_new = result_new._append({"kappa_target":k, "geometries":geom, "kappa_BTE":kappa}, ignore_index=True)
+    
+    result_new.to_csv(f"data/optimization/{model_name}/evolutionary_geometries_withBTE.csv", index=False)

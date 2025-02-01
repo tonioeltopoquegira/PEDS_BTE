@@ -9,7 +9,7 @@ import optax
 from flax import nnx
 
 from modules.params_utils import save_params
-from modules.training_utils import data_loader, print_generated, update_and_check_grads, clip_gradients, plot_learning_curves, choose_schedule, accumulate_gradients, distribute_dataset, mpi_allreduce_gradients, create_folders, final_validation
+from modules.training_utils import data_loader, print_generated, update_and_check_grads, clip_gradients, plot_update_learning_curves, choose_schedule, accumulate_gradients, distribute_dataset, mpi_allreduce_gradients, create_folders, final_validation, update_curves
 from models.peds import PEDS
 
 
@@ -24,11 +24,7 @@ def train_model(model_name,
     
     create_folders(model_name)
 
-    try:
-        curves = np.load(f"data/results/{model_name}/training_curves.npz", allow_pickle=True)
-        n_past_epoch = len(curves['epoch_times'])
-    except Exception as e:
-        n_past_epoch = 0
+    n_past_epoch = update_curves(model_name)
 
     # Scheduler optimizer
     lr_schedule = choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs)
@@ -128,6 +124,7 @@ def train_model(model_name,
 
             grads = accumulate_gradients(grads, mpi_allreduce_gradients(local_grads, comm))
         
+
         # Update of parameters!
         optimizer.update(grads)
 
@@ -141,74 +138,20 @@ def train_model(model_name,
         valid_perc_losses[epoch] = total_loss_perc
 
         if rank == 0 and (epoch+1)%print_every == 0:
-            print(f"Epoch {epoch+1}/{epochs}, Training Losses: [{avg_loss:.2f}] , Validation Losses: [{avg_val_loss:.2f}, {total_loss_perc:.2f}%], Epoch time: {time.time() - epoch_time:.2f}s")
+            print(f"Epoch {epoch+1+n_past_epoch}/{epochs+n_past_epoch}, Training Losses: [{avg_loss:.2f}] , Validation Losses: [{avg_val_loss:.2f}, {total_loss_perc:.2f}%], Epoch time: {time.time() - epoch_time:.2f}s")
         
         sys.stdout.flush() 
 
         if (epoch + 1) % 100 == 0 and rank == 0:
-            try:
-                curves = np.load(f"data/results/{model_name}/training_curves.npz", allow_pickle=True)
-                
-                # Concatenate only new data
-                epoch_times_tot = np.concatenate([curves['epoch_times'][:n_past_epoch], epoch_times[:epoch]])
-                epoch_losses_tot = np.concatenate([curves['epoch_losses'][:n_past_epoch], epoch_losses[:epoch]])
-                valid_losses_tot = np.concatenate([curves['valid_losses'][:n_past_epoch:], valid_losses[:epoch]])
-                valid_perc_losses_tot = np.concatenate([curves['valid_perc_losses'][:n_past_epoch:], valid_perc_losses[:epoch]])
-                
-                # Calculate total epochs
-                epoch_tot = len(epoch_losses_tot)
-                
-                # Plot and save
-                plot_learning_curves(epoch_times_tot, epoch_losses_tot, valid_losses_tot, valid_perc_losses_tot, schedule, model_name, epoch_tot, learn_rate_max, learn_rate_min)
-                np.savez(
-                    f"data/results/{model_name}/training_curves.npz", 
-                    epoch_times=epoch_times_tot, 
-                    epoch_losses=epoch_losses_tot,
-                    valid_losses=valid_losses_tot, 
-                    valid_perc_losses=valid_perc_losses_tot,
-                    allow_pickle=True
-                )
-            except Exception as e:
-                print(f"No training curves file: {e}. Creating new one.")
-                plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, model_name, epoch, learn_rate_max, learn_rate_min)
-                np.savez(
-                    f"data/results/{model_name}/training_curves.npz", 
-                    epoch_times=epoch_times, 
-                    epoch_losses=epoch_losses,
-                    valid_losses=valid_losses, 
-                    valid_perc_losses=valid_perc_losses,
-                    allow_pickle=True
-                )
             
+            plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
             save_params(model_name, model, checkpointer)
 
 
 
     if rank == 0:
-        """curves = np.load(f"data/results/{model_name}/training_curves.npz", allow_pickle=True)
-
-        if (epoch+1) == 100:
-            n_past_epoch = len(curves['epoch_times'])
         
-        # Concatenate only new data
-        epoch_times_tot = np.concatenate([curves['epoch_times'], epoch_times[n_past_epoch:epoch]])
-        epoch_losses_tot = np.concatenate([curves['epoch_losses'], epoch_losses[n_past_epoch:epoch]])
-        valid_losses_tot = np.concatenate([curves['valid_losses'], valid_losses[n_past_epoch:epoch]])
-        valid_perc_losses_tot = np.concatenate([curves['valid_perc_losses'], valid_perc_losses[n_past_epoch:epoch]])
-        
-        # Calculate total epochs
-        epoch_tot = len(epoch_losses_tot)
-        
-        # Plot and save
-        plot_learning_curves(epoch_times_tot, epoch_losses_tot, valid_losses_tot, valid_perc_losses_tot, schedule, model_name, epoch_tot, learn_rate_max, learn_rate_min)
-        np.savez(
-            f"data/results/{model_name}/training_curves.npz", 
-            epoch_times=epoch_times_tot, 
-            epoch_losses=epoch_losses_tot,
-            valid_losses=valid_losses_tot, 
-            valid_perc_losses=valid_perc_losses_tot,
-            allow_pickle=True
-        )"""
+        plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
     
         save_params(model_name, model, checkpointer)
 
