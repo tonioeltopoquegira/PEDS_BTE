@@ -10,7 +10,7 @@ from openbte import load_rta, RTA2DSym, Geometry, BTE_RTA, Fourier, rectangle, g
 from openbte.objects import BoundaryConditions, OpenBTEResults, EffectiveThermalConductivity
 
 
-def highfidelity_solver(pores, save_show_res = False):
+def highfidelity_solver(pores, step_size, save_show_res = False):
 
     # cancel any previous geometry saved 
 
@@ -19,7 +19,7 @@ def highfidelity_solver(pores, save_show_res = False):
     mat = RTA2DSym(data=rta_data)
 
     # Create Base Mesh
-    mesh = Geometry(2) # prova anche 1
+    mesh = Geometry(step_size) # prova anche 1
     L= 100 # mesh 
     mesh.add_shape(rectangle(area = L*L))
 

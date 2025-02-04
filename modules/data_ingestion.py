@@ -13,7 +13,6 @@ def data_ingestion(filename, train_size, stratified, multifidelity,key=42,filena
 
     pores = jnp.asarray(full_data['pores'], dtype=jnp.float32)
     kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32)
-    base_conductivities = jnp.asarray(full_data['conductivity'], dtype=jnp.float32)
 
     if multifidelity:
         """high_fid_data = jnp.load("data/highfidelity/" + filename_highfid, allow_pickle=True)
@@ -42,11 +41,8 @@ def data_ingestion(filename, train_size, stratified, multifidelity,key=42,filena
         # multiply old fidelity by 0.8 or some value and concatenate 1s relative to the highfidelity ones
         pass
 
-    
-    
-
-    dataset_train = [pores[train_indices], base_conductivities[train_indices], kappas[train_indices], fidelity[train_indices]]
-    dataset_valid = [pores[test_indices], base_conductivities[test_indices], kappas[test_indices], fidelity[test_indices]]
+    dataset_train = [pores[train_indices], kappas[train_indices], fidelity[train_indices]]
+    dataset_valid = [pores[test_indices], kappas[test_indices], fidelity[test_indices]]
 
 
     return dataset_train, dataset_valid, 

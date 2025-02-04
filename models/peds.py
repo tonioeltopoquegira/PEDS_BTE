@@ -11,7 +11,7 @@ class PEDS(nnx.Module):
 
     def __init__(self, resolution:int, 
                 learn_residual: bool, hidden_sizes:list, activation:str,
-                solver:str):
+                solver:str, init_min:float):
         super().__init__()
 
         # 100 nanometers / step_size nanometer
@@ -19,6 +19,7 @@ class PEDS(nnx.Module):
         self.layer_sizes = [25] + hidden_sizes + [resolution**2]
         self.activation = activation
         self.learn_residual = learn_residual
+        self.init_min = init_min
 
         # Create model
         key = nnx.Rngs(42)
@@ -50,7 +51,7 @@ class PEDS(nnx.Module):
         else:
             conductivity_final = conductivity_generated
 
-        conductivity_final = jnp.maximum(conductivity_final, 1e-12)
+        conductivity_final = jnp.maximum(conductivity_final, self.init_min)
         kappa = self.lowfidsolver(conductivity_final) 
 
         

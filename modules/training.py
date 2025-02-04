@@ -34,13 +34,13 @@ def train_model(exp,
     
     def train_step(batch_local, epoch, batch_n, rank):
 
-        pores, conductivities, kappas, fid = batch_local
+        pores, kappas, fid = batch_local
         
         if isinstance(model, PEDS):
             def loss_fn(model):
                 kappa_pred, conductivity_res = model(pores) # change here
                 if (epoch+1) % 50 == 0 and batch_n == 0 and rank == 0:
-                    print_generated(model, conductivities, conductivity_res, epoch+1+n_past_epoch, model_name, kappa_pred, kappas) # change here
+                    print_generated(model, conductivity_res, epoch+1+n_past_epoch, model_name, kappa_pred, kappas) # change here
                 residuals = kappa_pred - kappas
                 residuals_weighted = residuals * fid
                 loss = jnp.sum(residuals_weighted**2)
@@ -69,7 +69,7 @@ def train_model(exp,
         total_error_perc  = 0.0
 
         for en, val_batch in enumerate(data_loader(*dataset, batch_size=batch_size)):
-            val_pores, val_conductivities, val_kappas, fid = val_batch
+            val_pores, val_kappas, fid = val_batch
 
             if isinstance(model, PEDS):
                 kappa_val, _ = model(val_pores) # here
@@ -156,8 +156,9 @@ def train_model(exp,
     
         save_params(model_name, model, checkpointer)
 
-        exp['mse_train']= avg_loss
-        exp['mse_test'] = avg_val_loss
+        exp['mse_train']= avg_loss.item()
+        exp['mse_test'] = avg_val_loss.item()
+        exp['perc_error'] = total_loss_perc.item()
 
         final_validation(exp, model, model_name, dataset_valid)
 

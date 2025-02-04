@@ -23,15 +23,19 @@ def data_loader(*arrays, batch_size):
         batch_indices = indices[start_idx:start_idx + batch_size]
         yield tuple(array[batch_indices] for array in arrays)
 
-def print_generated(model, conductivities, conductivity_res, epoch, model_name, kappa_predicted, kappa_target):
+def print_generated(model, conductivity_res, epoch, model_name, kappa_predicted, kappa_target):
     # Ensure the arrays are NumPy arrays and detach from the computation graph
-    conductivities_numpy = [np.asarray(jax.lax.stop_gradient(c)) for c in conductivities[:3]]
+    # here we would need to generate the base conductivities!!! (not done for under 20x20)
     conductivity_res_numpy = [np.asarray(jax.lax.stop_gradient(r)) for r in conductivity_res[:3]]
     kappa_predicted_n = [np.asarray(jax.lax.stop_gradient(r)) for r in kappa_predicted[:3]]
 
     if model.learn_residual:
+       
 
-        # Create the figure and axes for 3x3 subplots
+        pass
+
+
+        """# Create the figure and axes for 3x3 subplots
         fig, axes = plt.subplots(3, 3, figsize=(18, 15), gridspec_kw={"width_ratios": [1, 1, 1]})
 
         # Define the range for the color map to ensure all plots use the same scale
@@ -63,10 +67,25 @@ def print_generated(model, conductivities, conductivity_res, epoch, model_name, 
             )
 
         # Create a single colorbar for all subplots (linked to final conductivity)
-        fig.colorbar(im3, ax=axes[:, :3], orientation='horizontal', label='Conductivity')
+        fig.colorbar(im3, ax=axes[:, :3], orientation='horizontal', label='Conductivity')"""
 
     else:
-        # Create the figure and axes for 3x3 subplots
+        # Create the figure and axes for 3 subplots (one column)
+        fig, axes = plt.subplots(3, 1, figsize=(6, 9))  # 3 rows, 1 column
+
+        # Define the range for the color map to ensure consistent scaling
+        vmin = np.min(conductivity_res_numpy)
+        vmax = np.max(conductivity_res_numpy)
+
+        # Plot only the generated conductivity
+        for i in range(3):
+            im = axes[i].imshow(conductivity_res_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
+            axes[i].set_title(f'Generated Conductivity {i+1}')
+
+        # Create a single colorbar for all subplots
+        fig.colorbar(im, ax=axes, orientation='vertical', label='Conductivity')
+
+        """# Create the figure and axes for 3x3 subplots
         fig, axes = plt.subplots(3, 2, figsize=(12, 9), gridspec_kw={"width_ratios": [1, 1]})
 
         # Define the range for the color map to ensure all plots use the same scale
@@ -95,7 +114,7 @@ def print_generated(model, conductivities, conductivity_res, epoch, model_name, 
             )
 
             # Create a single colorbar for all subplots (linked to final conductivity)
-        fig.colorbar(im2, ax=axes[:3, :], orientation='vertical', label='Conductivity')
+        fig.colorbar(im2, ax=axes[:3, :], orientation='vertical', label='Conductivity')"""
 
     
     # Save the figure
@@ -264,7 +283,7 @@ def distribute_dataset(dataset, rank, size):
     Returns:
     - Local dataset for this rank.
     """
-    pores, conductivities, kappas, fid = dataset
+    pores, kappas, fid = dataset
 
     # Determine chunk size per rank
     n_samples = pores.shape[0]
@@ -278,11 +297,10 @@ def distribute_dataset(dataset, rank, size):
 
     # Slice the dataset for this rank
     local_pores = pores[start_idx:end_idx]
-    local_conductivities = conductivities[start_idx:end_idx]
     local_kappas = kappas[start_idx:end_idx]
     local_fid = fid[start_idx:end_idx]
 
-    return [local_pores, local_conductivities, local_kappas, local_fid]
+    return [local_pores, local_kappas, local_fid]
 
 def mpi_allreduce_gradients(local_grads, comm):
     # Perform MPI Allreduce to accumulate gradients across all ranks
@@ -304,7 +322,7 @@ def choose_activation(activation):
         return hardtanh
     
 def final_validation(exp, model, model_name, dataset):
-    pores, cond, kappa, fid = dataset
+    pores, kappa, fid = dataset
     pores = pores.reshape((pores.shape[0], 25))
     if "PEDS" in model_name:
         kappa_pred, _ = model(pores)

@@ -9,7 +9,8 @@ def select_model(rngs, model_type, **kwargs):
             learn_residual=kwargs["learn_residual"], 
             hidden_sizes=kwargs["hidden_sizes"], 
             activation=kwargs["activation"], 
-            solver=kwargs["solver"]
+            solver=kwargs["solver"],
+            init_min=kwargs['init_min']
         )
     elif model_type == "MLP":
         return mlp(

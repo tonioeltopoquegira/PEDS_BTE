@@ -5,14 +5,21 @@ import os
 from OpenBTE_highfid import highfidelity_solver
 import re
 
+
+# make it such that the results only store pores and kappas. With stores in a single 1D array and kappa a float
+
 # Number of data points to generate
-num_data_points = 2
+num_data_points = 1
+step_size = 1.5
+perc = 0.25
+
+
 results = {'pores': [], 'kappas': []}
 
 save_dir = "data/highfidelity"
 os.makedirs(save_dir, exist_ok=True)
 # Regex pattern to find files with the naming convention "high_fidelity_#.npz"
-pattern = re.compile(r"high_fidelity_(\d+)\.npz")
+pattern = re.compile(f"high_fidelity_{step_size}_(\d+)\.npz")
 
 # Find the file with the highest numerical value in its name
 def get_highest_value_file(directory, pattern):
@@ -34,9 +41,8 @@ if filename:
     print(f"Existing count: {existing_count}")
 else:
     print("No existing data found. Initializing empty results...")
-    existing_results = {'pores': [], 'kappa_bte': [], 'temp_bte': [], 'flux_bte': []}
+    existing_results = {'pores': [], 'kappas': []}
     existing_count = 0
-
 # Print results for verification
 print(f"Initialized with {existing_count} existing observations.")
 # Generate and save new data points
@@ -45,11 +51,11 @@ for i in range(len(existing_results['pores']), len(existing_results['pores']) + 
     key = jax.random.PRNGKey(i + existing_count)
     
     # Generate pores as a 2D boolean array, then convert to int
-    pores = (jax.random.uniform(key, (5, 5)) < 0.25).astype(int)
+    pores = (jax.random.uniform(key, (5, 5)) < perc).astype(int)
 
 
     # Run high fidelity solver with 2D `pores`
-    kappa_bte, temp_bte, flux_bte = highfidelity_solver(pores, save_show_res=False)
+    kappa_bte, temp_bte, flux_bte = highfidelity_solver(pores, step_size, save_show_res=False)
     
     # Flatten pores, temp_bte, and flux_bte for storage
     pores_flat = pores.flatten()
@@ -68,7 +74,7 @@ if any(results.values()):
         existing_results[key].extend(results[key])
     
     # Save the data with the new filename
-    filename = os.path.join(save_dir, f"high_fidelity_{existing_count+num_data_points}.npz")
+    filename = os.path.join(save_dir, f"high_fidelity_{step_size}_{existing_count+num_data_points}.npz")
     np.savez(filename, **{k: np.array(v, dtype=object) for k, v in existing_results.items()})
 
 # Load and print the final saved data

@@ -15,31 +15,33 @@ from modules.training import train_model
 exp = { "seed" : 42,
 
         # Data
-        "filename_data" : "high_fidelity_10012_20steps.npz",
-        "train_size" : 8000,
+        "filename_data" : "high_fidelity_10012.npz",
+        "train_size" : 200,
         "stratified": False,
         "multifidelity": False,
 
         # Model
-        "model_name": "PEDS_gauss",
-        "model": "PEDS",
+        "model_name": "wdhcdchwd",
+        "model": "MLP",
         "resolution": 20,
         "learn_residual": False,
-        "hidden_sizes": [32, 64, 128],
+        "hidden_sizes": [25, 32, 64, 128, 1],
         "activation": "relu",
         "solver": "gauss",
+        "init_min": 1e-7,
 
         # Training
-        "epochs": 3000,
+        "epochs": 50,
         "batch_size": 500,
         "learn_rate_max": 5e-4,
         "learn_rate_min": 5e-5,
         "schedule": "cosine-cycles",
-        "print_every": 1,
+        "print_every": 10,
 
         # Results
-        "mse_train": np.inf,
-        "mse_test": np.inf
+        "mse_train": -1.0,
+        "mse_test": -1.0,
+        "perc_error":-1.0
         }
 
 # Initialize random key
@@ -61,10 +63,9 @@ model = select_model(
     learn_residual=exp["learn_residual"], 
     hidden_sizes=exp["hidden_sizes"], 
     activation=exp["activation"], 
-    solver=exp["solver"]
+    solver=exp["solver"],
+    init_min = exp['init_min']
 )
-
-print(model)
 
 # Initialize MPI
 comm = MPI.COMM_WORLD
