@@ -8,6 +8,7 @@ import optax
 from flax import nnx
 import pandas as pd
 import seaborn as sns
+import json
 
 from mpi4py import MPI
 
@@ -263,7 +264,7 @@ def distribute_dataset(dataset, rank, size):
     Returns:
     - Local dataset for this rank.
     """
-    pores, conductivities, kappas = dataset
+    pores, conductivities, kappas, fid = dataset
 
     # Determine chunk size per rank
     n_samples = pores.shape[0]
@@ -279,8 +280,9 @@ def distribute_dataset(dataset, rank, size):
     local_pores = pores[start_idx:end_idx]
     local_conductivities = conductivities[start_idx:end_idx]
     local_kappas = kappas[start_idx:end_idx]
+    local_fid = fid[start_idx:end_idx]
 
-    return [local_pores, local_conductivities, local_kappas]
+    return [local_pores, local_conductivities, local_kappas, local_fid]
 
 def mpi_allreduce_gradients(local_grads, comm):
     # Perform MPI Allreduce to accumulate gradients across all ranks
@@ -301,8 +303,8 @@ def choose_activation(activation):
     if activation == "hardtanh":
         return hardtanh
     
-def final_validation(model, model_name, dataset):
-    pores, cond, kappa = dataset
+def final_validation(exp, model, model_name, dataset):
+    pores, cond, kappa, fid = dataset
     pores = pores.reshape((pores.shape[0], 25))
     if "PEDS" in model_name:
         kappa_pred, _ = model(pores)
@@ -400,6 +402,15 @@ def final_validation(model, model_name, dataset):
     plt.tight_layout()
     plt.savefig(f"figures/models/{model_name}/final_validation/binned_error_distribution.png")
     plt.close()
+
+
+    # Write in a text the configuration
+    save_path = f"data/training_results/{model_name}/configurations.txt"
+
+    with open(save_path, "w") as f:
+        json.dump(exp, f, indent=4)
+
+    print(f"Experiment configuration saved at: {save_path}")
 
 
 def update_curves(model_name):

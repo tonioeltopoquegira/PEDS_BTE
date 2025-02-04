@@ -14,7 +14,8 @@ from models.peds import PEDS
 
 
 
-def train_model(model_name,
+def train_model(exp,
+                model_name,
                 dataset_train, dataset_valid, 
                 model,
                 learn_rate_max, learn_rate_min, schedule,  epochs, batch_size,
@@ -25,21 +26,24 @@ def train_model(model_name,
     create_folders(model_name)
 
     n_past_epoch = update_curves(model_name)
+    exp['epochs'] = exp['epochs'] + n_past_epoch
 
     # Scheduler optimizer
     lr_schedule = choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs)
     optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
     
-    def train_step(pores, conductivities, kappas, epoch, batch, rank):
+    def train_step(batch_local, epoch, batch_n, rank):
+
+        pores, conductivities, kappas, fid = batch_local
         
         if isinstance(model, PEDS):
             def loss_fn(model):
                 kappa_pred, conductivity_res = model(pores) # change here
-                if (epoch+1) % 50 == 0 and batch == 0 and rank == 0:
+                if (epoch+1) % 50 == 0 and batch_n == 0 and rank == 0:
                     print_generated(model, conductivities, conductivity_res, epoch+1+n_past_epoch, model_name, kappa_pred, kappas) # change here
                 residuals = kappa_pred - kappas
-                loss = jnp.sum(residuals**2)
-
+                residuals_weighted = residuals * fid
+                loss = jnp.sum(residuals_weighted**2)
                 return loss
         else:
             def loss_fn(model):
@@ -47,7 +51,8 @@ def train_model(model_name,
                 kappa_pred = model(pores_reshaped)
                 kappa_pred = jnp.squeeze(kappa_pred, -1)
                 residuals = kappa_pred - kappas
-                loss = jnp.sum(residuals**2)
+                residuals_weighted = residuals * fid
+                loss = jnp.sum(residuals_weighted**2)
                 return loss
             
         # Compute loss and gradients
@@ -60,13 +65,11 @@ def train_model(model_name,
 
         # 2000, 5, 5 ---> 10, 200, 5, 5 ne avanzano 2 dopo le prime 8 diversamente da
         # 8000, 5, 5 ---> 40, 200, 5, 5
-
-        batch_size = 125
         total_val_loss = 0.0
         total_error_perc  = 0.0
 
         for en, val_batch in enumerate(data_loader(*dataset, batch_size=batch_size)):
-            val_pores, val_conductivities, val_kappas = val_batch
+            val_pores, val_conductivities, val_kappas, fid = val_batch
 
             if isinstance(model, PEDS):
                 kappa_val, _ = model(val_pores) # here
@@ -112,12 +115,10 @@ def train_model(model_name,
         grads = None
         total_loss = 0.0 
 
-        for en, batch in enumerate(data_loader(*dataset_train_local, batch_size=batch_size)):
+        for en, batch_local in enumerate(data_loader(*dataset_train_local, batch_size=batch_size)):
 
-            pores_local, conductivities_local, kappas_local = batch
-            
             # Compute loss and gradients locally
-            local_loss, local_grads = train_step(pores_local, conductivities_local, kappas_local, epoch, en, rank)
+            local_loss, local_grads = train_step(batch_local, epoch, en, rank)
             
             # Accumulate loss across ranks
             total_loss += comm.allreduce(local_loss, op=MPI.SUM)
@@ -155,7 +156,14 @@ def train_model(model_name,
     
         save_params(model_name, model, checkpointer)
 
-        final_validation(model, model_name, dataset_valid)
+        exp['mse_train']= avg_loss
+        exp['mse_test'] = avg_val_loss
+
+        final_validation(exp, model, model_name, dataset_valid)
+
+       
+
+        
     
 
 

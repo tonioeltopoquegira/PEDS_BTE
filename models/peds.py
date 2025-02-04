@@ -50,7 +50,7 @@ class PEDS(nnx.Module):
         else:
             conductivity_final = conductivity_generated
 
-        conductivity_final = jnp.maximum(conductivity_final, 1e-7)
+        conductivity_final = jnp.maximum(conductivity_final, 1e-12)
         kappa = self.lowfidsolver(conductivity_final) 
 
         

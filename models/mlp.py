@@ -10,11 +10,7 @@ class mlp(nnx.Module):
         super().__init__()
 
         dense_init = nnx.initializers.xavier_normal()
-
-        if activation == "relu":
-            bias_init = nnx.initializers.constant(1.0)
-        else:
-            bias_init = nnx.initializers.constant(0.0)
+        bias_init = nnx.initializers.constant(0.0)
             
         self.last_activation = last_activation
         self.layers = [

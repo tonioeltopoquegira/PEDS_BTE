@@ -6,7 +6,7 @@ from OpenBTE_highfid import highfidelity_solver
 import re
 
 # Number of data points to generate
-num_data_points = 1
+num_data_points = 2
 results = {'pores': [], 'kappas': []}
 
 save_dir = "data/highfidelity"

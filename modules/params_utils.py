@@ -4,7 +4,7 @@ from flax import nnx
 from pathlib import Path
 from datetime import datetime
 import shutil
-import numpy as np
+
 
 
 # Function for initializing or restoring model parameters
@@ -85,3 +85,6 @@ def save_params(model_name, generator, checkpointer, epoch=None):
 
     #os.makedirs(new_checkpoint_dir, exist_ok=False)  # Ensure the directory does not already exist
     checkpointer.save(new_checkpoint_dir, state)
+
+   
+    
