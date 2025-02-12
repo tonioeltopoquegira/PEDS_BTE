@@ -1,18 +1,13 @@
 import jax.numpy as jnp
 import jax.random as jrandom
 
-def data_ingestion(filename, train_size, stratified, multifidelity,key=42,filename_highfid=None):
+def data_ingestion(filename, total_size, train_size, stratified, multifidelity,key=42,filename_highfid=None):
 
-    # fidelity è weights per le train instances... se multifidelity false setta tutto uguale a 1
-
-    if stratified:
-        # for now just oversample higher values in the generation
-        pass
 
     full_data = jnp.load("data/highfidelity/" + filename, allow_pickle=True)
 
-    pores = jnp.asarray(full_data['pores'], dtype=jnp.float32)
-    kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32)
+    pores = jnp.asarray(full_data['pores'][:total_size], dtype=jnp.float32)
+    kappas = jnp.asarray(full_data['kappas'][:total_size], dtype=jnp.float32)
 
     if multifidelity:
         """high_fid_data = jnp.load("data/highfidelity/" + filename_highfid, allow_pickle=True)
@@ -28,8 +23,11 @@ def data_ingestion(filename, train_size, stratified, multifidelity,key=42,filena
         # concatenate pores, kappas and so on with highfidelity. Take in account which one are which
         pass
 
+    if stratified:
+        # kappa spans from 10 to 157... 
 
-    total_size = len(pores)
+        pass
+
     key = key.unwrap() if hasattr(key, "unwrap") else key  # Extract JAX key if it's an nnx RngStream
     indices = jrandom.permutation(key, jnp.arange(total_size))
     train_indices = indices[:train_size]

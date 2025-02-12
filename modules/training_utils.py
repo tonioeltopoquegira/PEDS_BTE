@@ -266,6 +266,12 @@ def choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs):
 
     if schedule == "constant":
         lr_schedule = learn_rate_min
+    
+    steps = np.arange(epochs)
+
+    lr_values = np.array([lr_schedule(step) for step in steps])
+    plt.plot(steps, lr_values, label=schedule)
+    plt.show()
 
     
     return lr_schedule

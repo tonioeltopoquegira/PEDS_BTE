@@ -2,7 +2,7 @@ from flax import nnx
 import jax.numpy as jnp
 from models.mlp import mlp
 from solvers.low_fidelity_solvers.lowfidsolver_class import lowfid
-from test_code import optimized_conductivity_grid_jax
+from solvers.low_fidelity_solvers.base_conductivity_grid_converter import optimized_conductivity_grid_jax
 
 
 

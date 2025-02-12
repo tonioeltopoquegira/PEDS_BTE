@@ -126,7 +126,7 @@ def train_model(exp,
             grads = accumulate_gradients(grads, mpi_allreduce_gradients(local_grads, comm))
         
 
-        # Update of parameters!
+        # Update of parameters! # should we impose it to be done when rank ==1?
         optimizer.update(grads)
 
         # Validation step

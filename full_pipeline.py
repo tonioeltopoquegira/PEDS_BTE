@@ -15,24 +15,25 @@ from modules.training import train_model
 exp = { "seed" : 42,
 
         # Data
-        "filename_data" : "high_fidelity_10012.npz",
-        "train_size" : 200,
+        "filename_data" : "high_fidelity_2_13000.npz",
+        "train_size" : 8000,
+        "total_size" : 10000,
         "stratified": False,
         "multifidelity": False,
 
         # Model
-        "model_name": "wdhcdchwd",
-        "model": "MLP",
-        "resolution": 20,
+        "model_name": "PEDS_gauss_5by5_lowval_100kparams",
+        "model": "PEDS",
+        "resolution": 5,
         "learn_residual": False,
-        "hidden_sizes": [25, 32, 64, 128, 1],
+        "hidden_sizes": [32, 64, 128, 256, 256],
         "activation": "relu",
         "solver": "gauss",
-        "init_min": 1e-7,
+        "init_min": 1e-12,
 
         # Training
-        "epochs": 50,
-        "batch_size": 500,
+        "epochs": 3000,
+        "batch_size": 200,
         "learn_rate_max": 5e-4,
         "learn_rate_min": 5e-5,
         "schedule": "cosine-cycles",
@@ -42,7 +43,7 @@ exp = { "seed" : 42,
         "mse_train": -1.0,
         "mse_test": -1.0,
         "perc_error":-1.0
-        }
+    }
 
 # Initialize random key
 rngs = nnx.Rngs(exp["seed"])
@@ -51,6 +52,7 @@ rngs = nnx.Rngs(exp["seed"])
 dataset_train, dataset_valid = data_ingestion(
     filename=exp["filename_data"], 
     train_size=exp["train_size"], 
+    total_size=exp['total_size'],
     stratified=exp["stratified"], 
     multifidelity=exp["multifidelity"], 
     key=rngs

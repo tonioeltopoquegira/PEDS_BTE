@@ -3,7 +3,6 @@
 # This tool is interfaced to first-principles calculations, thus it unlocks the calculations of thermal-related properties with no fitting-parameters
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 # OpenBTE
 from openbte import load_rta, RTA2DSym, Geometry, BTE_RTA, Fourier, rectangle, get_mesh

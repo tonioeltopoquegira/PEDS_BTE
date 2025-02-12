@@ -9,14 +9,14 @@ import re
 # make it such that the results only store pores and kappas. With stores in a single 1D array and kappa a float
 
 # Number of data points to generate
-num_data_points = 1
-step_size = 1.5
-perc = 0.25
+num_data_points = 18
+step_size = 2
+perc = 0.900
 
 
 results = {'pores': [], 'kappas': []}
 
-save_dir = "data/highfidelity"
+save_dir = "./data/highfidelity"
 os.makedirs(save_dir, exist_ok=True)
 # Regex pattern to find files with the naming convention "high_fidelity_#.npz"
 pattern = re.compile(f"high_fidelity_{step_size}_(\d+)\.npz")

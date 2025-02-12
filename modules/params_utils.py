@@ -4,7 +4,11 @@ from flax import nnx
 from pathlib import Path
 from datetime import datetime
 import shutil
+import jax
+import jax.numpy as jnp
 
+def get_shapes(params):
+    return jax.tree_util.tree_map(lambda x: x.shape if isinstance(x, jnp.ndarray) else None, params)
 
 
 # Function for initializing or restoring model parameters
