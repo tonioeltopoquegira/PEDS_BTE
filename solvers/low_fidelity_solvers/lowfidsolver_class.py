@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import jax
 
+
 from solvers.low_fidelity_solvers.gauss_diffusion import gauss_solver
 from solvers.low_fidelity_solvers.fd_diffusion import fd_diffusion
 
@@ -91,7 +92,7 @@ class lowfid(nnx.Module):
             T = fd_diffusion(conductivity)
         return flux_kappa(conductivity, T)
 
-@nnx.jit
+#@nnx.jit
 def flux_kappa(conductivity, Ts):
     # Initialize arrays for fluxes
     Jy = jnp.zeros_like(Ts)

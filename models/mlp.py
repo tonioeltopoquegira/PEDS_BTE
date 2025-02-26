@@ -5,30 +5,31 @@ from modules.training_utils import choose_activation
 
 class mlp(nnx.Module):
 
-    def __init__(self, layer_sizes:list, activation:str, rngs:nnx.Rngs, last_activation=False):
-        
+    def __init__(self, layer_sizes: list, activation: str, initialization: str, rngs: nnx.Rngs, final_init=False):
         super().__init__()
 
-        dense_init = nnx.initializers.xavier_normal()
+        if initialization == "he":
+            dense_init = nnx.initializers.kaiming_normal()
+        elif initialization == "xavier":
+            dense_init = nnx.initializers.xavier_normal()
+        
         bias_init = nnx.initializers.constant(0.0)
             
-        self.last_activation = last_activation
         self.layers = [
             nnx.Linear(i, o, kernel_init=dense_init, bias_init=bias_init, rngs=rngs) 
-            for i, o in zip(layer_sizes[:-1], layer_sizes[1:])]
+            for i, o in zip(layer_sizes[:-1], layer_sizes[1:])
+        ]
         
-        self.activation = choose_activation(activation)
-    
+        if final_init:
+            self.layers.pop(-1)
+            self.layers.append(nnx.Linear(layer_sizes[-2], layer_sizes[-1], kernel_init=nnx.initializers.constant(0.1), bias_init=bias_init, rngs=rngs))
+        
+        self.activations = choose_activation(activation, len(self.layers))
+
     def __call__(self, x):
-        for en, layer in enumerate(self.layers[:-1]):
+        for en, (layer, activation_fn) in enumerate(zip(self.layers, self.activations)):
             x = layer(x)
-            x = self.activation(x)
-        
-        x = self.layers[-1](x)
-
-        if self.last_activation:
-            x = self.activation(x)
-
-
+            x = activation_fn(x)  # Apply the activation function for this layer
+    
         return x
 

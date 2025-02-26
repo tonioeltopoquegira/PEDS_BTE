@@ -7,9 +7,10 @@ import numpy as np
 
 import optax
 from flax import nnx
+import jax
 
 from modules.params_utils import save_params
-from modules.training_utils import data_loader, print_generated, update_and_check_grads, clip_gradients, plot_update_learning_curves, choose_schedule, accumulate_gradients, distribute_dataset, mpi_allreduce_gradients, create_folders, final_validation, update_curves
+from modules.training_utils import data_loader, print_generated, update_and_check_grads, clip_gradients, plot_update_learning_curves, choose_schedule, accumulate_gradients, distribute_dataset, mpi_allreduce_gradients, final_validation, update_curves
 from models.peds import PEDS
 
 
@@ -22,16 +23,20 @@ def train_model(exp,
                 checkpointer,
                 print_every = 100): 
 
+    # Initialize MPI
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()  # Current process ID
+    size = comm.Get_size()  # Total number of processes
+
     
-    create_folders(model_name)
 
     n_past_epoch = update_curves(model_name)
     exp['epochs'] = exp['epochs'] + n_past_epoch
 
     # Scheduler optimizer
-    lr_schedule = choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs)
+    lr_schedule = choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs,model_name, n_past_epoch)
     optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
-    
+
     def train_step(batch_local, epoch, batch_n, rank):
 
         pores, kappas, fid = batch_local
@@ -39,8 +44,8 @@ def train_model(exp,
         if isinstance(model, PEDS):
             def loss_fn(model):
                 kappa_pred, conductivity_res = model(pores) # change here
-                if (epoch+1) % 50 == 0 and batch_n == 0 and rank == 0:
-                    print_generated(model, conductivity_res, epoch+1+n_past_epoch, model_name, kappa_pred, kappas) # change here
+                if (epoch+1) % 100 == 0 and batch_n == 0 and rank == 0:
+                    print_generated(model, pores, conductivity_res, epoch+1+n_past_epoch, model_name, kappa_pred, kappas) # change here
                 residuals = kappa_pred - kappas
                 residuals_weighted = residuals * fid
                 loss = jnp.sum(residuals_weighted**2)
@@ -90,11 +95,6 @@ def train_model(exp,
         
         return total_val_loss, total_error_perc
 
-    # Initialize MPI
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()  # Current process ID
-    size = comm.Get_size()  # Total number of processes
-
     if rank == 0:
         print(f"Past epochs: {n_past_epoch}")
 
@@ -127,7 +127,11 @@ def train_model(exp,
         
 
         # Update of parameters! # should we impose it to be done when rank ==1?
+        
         optimizer.update(grads)
+
+        if epoch % 50 == 0:
+            jax.clear_caches()
 
         # Validation step
         avg_val_loss, total_loss_perc = valid_step(dataset_valid_local, batch_size, comm, valid_size = dataset_valid[0].shape[0])
@@ -143,11 +147,10 @@ def train_model(exp,
         
         sys.stdout.flush() 
 
-        if (epoch + 1) % 100 == 0 and rank == 0:
+        if (epoch+1) % 100 == 0 and rank == 0:
             
             plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
             save_params(model_name, model, checkpointer)
-
 
 
     if rank == 0:

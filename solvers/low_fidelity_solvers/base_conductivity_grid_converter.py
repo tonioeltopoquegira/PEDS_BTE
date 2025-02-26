@@ -8,12 +8,14 @@ import numpy as np
 
 step_size = 5
 N = int(100 / step_size)
-size_square = int(10 * 1 / step_size)
-half_size_square = size_square // 2
-subgrid = jnp.ones((size_square, size_square)) * 1e-9
-indices = jnp.stack(jnp.meshgrid(jnp.arange(5), jnp.arange(5)), axis=-1).reshape(-1, 2)
 
-def optimized_conductivity_grid_jax(pores, N, indices, size_square, half_size_square, subgrid):
+
+def optimized_conductivity_grid_jax(pores, N):
+    step_size = int(100 / N)
+    size_square = int(10 * 1 / step_size)
+    half_size_square = size_square // 2
+    subgrid = jnp.ones((size_square, size_square)) * 1e-9
+    indices = jnp.stack(jnp.meshgrid(jnp.arange(5), jnp.arange(5)), axis=-1).reshape(-1, 2)
 
     batch_size = pores.shape[0]
     pores = jnp.reshape(pores, [batch_size, 5, 5])
@@ -41,34 +43,66 @@ def optimized_conductivity_grid_jax(pores, N, indices, size_square, half_size_sq
     
     return conductivity
 
-nnx.jit(fun=optimized_conductivity_grid_jax, static_argnums=(1,2,3,4,5))
+#nnx.jit(fun=optimized_conductivity_grid_jax, static_argnums=(1,2,3,4,5))
+
+def conductivity_grid_5by5(pores):
+    return jnp.reshape(jnp.where(pores, 1e-7, 160), (pores.shape[0], 5, 5))
+
+   
+def conductivity_original_wrapper(pores, N):
+
+    if N >= 20:
+
+        return optimized_conductivity_grid_jax(pores, N)
+    
+
+    if N == 10:
+
+        pass
+
+    if N ==5:
+
+        return conductivity_grid_5by5(pores)
+    
+
+if __name__ == "__main__":
 
 
-
-"""
-# Ingest data <- Here we will do active learning
-full_data = jnp.load("data/highfidelity/high_fidelity_10012.npz", allow_pickle=True)
+    # Ingest data <- Here we will do active learning
+    full_data = jnp.load("data/highfidelity/high_fidelity_2_13000.npz", allow_pickle=True)
 
 
-pores_data = full_data['pores'][:10000]  # Slice the first 10,000 entries
+    pores_data = full_data['pores'][:10000]  # Slice the first 10,000 entries
 
-# Reshape the data to have the shape (N, 5, 5), where N is the number of samples
-pores_reshaped = pores_data.reshape(pores_data.shape[0], 5, 5)
+    # Reshape the data to have the shape (N, 5, 5), where N is the number of samples
+    pores_reshaped = pores_data.reshape(pores_data.shape[0], 5, 5)
 
-# Now convert to a JAX array
-pores = jnp.asarray(pores_reshaped, dtype=jnp.float32)
+    # Now convert to a JAX array
+    pores = jnp.asarray(pores_reshaped, dtype=jnp.float32)
 
-# Similarly, for kappas, if needed
-kappas = jnp.asarray(full_data['kappa_bte'][:10000], dtype=jnp.float32)
+    # Similarly, for kappas, if needed
+    kappas = jnp.asarray(full_data['kappas'][:10000], dtype=jnp.float32)
 
-print(pores.shape)
+    print(pores.shape)
 
-check_speed = time.time()
-conductivity_50 = optimized_conductivity_grid_jax(pores, N, indices, size_square, half_size_square, subgrid)
-print(f"Speed: {time.time()-check_speed} for {conductivity_50.shape} size")
+    N = 5
 
-# Add the new representation in a file called "high_fidelity_10012_with_base.npz"
-# Save new representation
-output_file = f"data/highfidelity/high_fidelity_10012_{N}steps.npz"
-jnp.savez(output_file, pores=pores, kappas=kappas, conductivity=conductivity_50)
-print(f"Saved extended dataset to {output_file}")"""
+    if N > 10:
+        check_speed = time.time()
+        conductivity_50 = optimized_conductivity_grid_jax(pores, N)
+        print(f"Speed: {time.time()-check_speed} for {conductivity_50.shape} size")
+
+        # Add the new representation in a file called "high_fidelity_10012_with_base.npz"
+        # Save new representation
+        """output_file = f"data/highfidelity/high_fidelity_10012_{N}steps.npz"
+        jnp.savez(output_file, pores=pores, kappas=kappas, conductivity=conductivity_50)
+        print(f"Saved extended dataset to {output_file}")"""
+
+    if N== 10:
+        pass
+
+    if N == 5:
+
+        check_speed = time.time()
+        conductivity_50 = conductivity_grid_5by5(pores)
+        print(f"Speed: {time.time()-check_speed} for {conductivity_50.shape} size")

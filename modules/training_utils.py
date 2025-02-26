@@ -11,6 +11,8 @@ import seaborn as sns
 import json
 
 from mpi4py import MPI
+from solvers.low_fidelity_solvers.base_conductivity_grid_converter import conductivity_original_wrapper
+
 
 cmap = plt.cm.viridis
 
@@ -23,19 +25,15 @@ def data_loader(*arrays, batch_size):
         batch_indices = indices[start_idx:start_idx + batch_size]
         yield tuple(array[batch_indices] for array in arrays)
 
-def print_generated(model, conductivity_res, epoch, model_name, kappa_predicted, kappa_target):
+def print_generated(model, pores, conductivity_res, epoch, model_name, kappa_predicted, kappa_target):
     # Ensure the arrays are NumPy arrays and detach from the computation graph
-    # here we would need to generate the base conductivities!!! (not done for under 20x20)
+    conductivities_numpy = np.array(conductivity_original_wrapper(pores[:3], conductivity_res.shape[-1]))
     conductivity_res_numpy = [np.asarray(jax.lax.stop_gradient(r)) for r in conductivity_res[:3]]
     kappa_predicted_n = [np.asarray(jax.lax.stop_gradient(r)) for r in kappa_predicted[:3]]
 
     if model.learn_residual:
-       
 
-        pass
-
-
-        """# Create the figure and axes for 3x3 subplots
+        # Create the figure and axes for 3x3 subplots
         fig, axes = plt.subplots(3, 3, figsize=(18, 15), gridspec_kw={"width_ratios": [1, 1, 1]})
 
         # Define the range for the color map to ensure all plots use the same scale
@@ -67,25 +65,10 @@ def print_generated(model, conductivity_res, epoch, model_name, kappa_predicted,
             )
 
         # Create a single colorbar for all subplots (linked to final conductivity)
-        fig.colorbar(im3, ax=axes[:, :3], orientation='horizontal', label='Conductivity')"""
+        fig.colorbar(im3, ax=axes[:, :3], orientation='horizontal', label='Conductivity')
 
     else:
-        # Create the figure and axes for 3 subplots (one column)
-        fig, axes = plt.subplots(3, 1, figsize=(6, 9))  # 3 rows, 1 column
-
-        # Define the range for the color map to ensure consistent scaling
-        vmin = np.min(conductivity_res_numpy)
-        vmax = np.max(conductivity_res_numpy)
-
-        # Plot only the generated conductivity
-        for i in range(3):
-            im = axes[i].imshow(conductivity_res_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
-            axes[i].set_title(f'Generated Conductivity {i+1}')
-
-        # Create a single colorbar for all subplots
-        fig.colorbar(im, ax=axes, orientation='vertical', label='Conductivity')
-
-        """# Create the figure and axes for 3x3 subplots
+       # Create the figure and axes for 3x3 subplots
         fig, axes = plt.subplots(3, 2, figsize=(12, 9), gridspec_kw={"width_ratios": [1, 1]})
 
         # Define the range for the color map to ensure all plots use the same scale
@@ -114,7 +97,7 @@ def print_generated(model, conductivity_res, epoch, model_name, kappa_predicted,
             )
 
             # Create a single colorbar for all subplots (linked to final conductivity)
-        fig.colorbar(im2, ax=axes[:3, :], orientation='vertical', label='Conductivity')"""
+        fig.colorbar(im2, ax=axes[:3, :], orientation='vertical', label='Conductivity')
 
     
     # Save the figure
@@ -186,14 +169,6 @@ def plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_los
     plt.close()
 
 
-
-
-
-
-
-
-
-
 def update_and_check_grads(grads, grads_new):
     """Update gradients and check for NaN or infinity values."""
     # Accumulate gradients
@@ -227,18 +202,21 @@ def update_and_check_grads(grads, grads_new):
 
     return grads
 
-@nnx.jit
+
+#@nnx.jit
 def accumulate_gradients(total_grads, new_grads):
         if total_grads is None:
             return new_grads
         return jax.tree_util.tree_map(lambda x, y: x + y, total_grads, new_grads)
 
-@nnx.jit
+
+#@nnx.jit
 def hardtanh(x):
     """Hard tanh activation: max(-1, min(1, x))."""
-    return jnp.clip(x, -1, 1)
+    return jnp.clip(x, 0.01, 160.0)
 
-def choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs):
+
+def choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs, model_name, n_past_epochs):
     
     if schedule == "cosine-decay":
         lr_schedule = optax.cosine_decay_schedule(
@@ -246,35 +224,61 @@ def choose_schedule(schedule, learn_rate_min, learn_rate_max, epochs):
             decay_steps=epochs,   # Number of epochs to decay over
             alpha=learn_rate_min / learn_rate_max  # Minimum learning rate as a fraction of max
         )
+
     if schedule == "cosine-cycles":
-        lr_schedule_onecycle = optax.cosine_decay_schedule(
-            init_value=learn_rate_max,  # Maximum learning rate
-            decay_steps=epochs // 25,   # Number of epochs to decay over
-            alpha=learn_rate_min / learn_rate_max  # Minimum learning rate as a fraction of max
-        )
 
-        lr_schedules = [lr_schedule_onecycle] * (epochs // 50)
-        boundaries = [i * (epochs // 50) for i in range(1, 50)]
-        lr_schedule = optax.join_schedules(lr_schedules, boundaries)
-
+        cycle = 25  # Adjust as needed
+        peak_value = learn_rate_max  # Max LR
+        min_value = learn_rate_min  # Min LR
+        lr_schedule = CustomCosineCycleSchedule(cycle, peak_value, min_value)
+    
     if schedule == "exponential":
         lr_schedule = optax.exponential_decay(
             init_value=learn_rate_max,
-            transition_steps=500,
+            transition_steps=1000,
             decay_rate=learn_rate_min / learn_rate_max
         )
 
     if schedule == "constant":
         lr_schedule = learn_rate_min
+        return lr_schedule
     
-    steps = np.arange(epochs)
+    
+    save_dir = f"figures/models/{model_name}"
+    os.makedirs(save_dir, exist_ok=True)
 
-    lr_values = np.array([lr_schedule(step) for step in steps])
-    plt.plot(steps, lr_values, label=schedule)
-    plt.show()
+    if rank == 0 and n_past_epochs == 0:
 
+        steps = np.arange(epochs)
+        lr_values = np.array([lr_schedule(step) for step in steps])
+        # Plotting the learning rate schedule
+        plt.plot(steps, lr_values, label=schedule)
+        plt.xlabel('Epochs')
+        plt.ylabel('Learning Rate')
+        plt.xlim(0, 100)
+        plt.yscale('log')
+        plt.title(f'Learning Rate Schedule ({schedule})')
+        plt.legend()
+
+        # Save the plot
+        plt.savefig(f"{save_dir}/learn_schedule_{schedule}.png")
+        plt.close()
     
     return lr_schedule
+
+
+class CustomCosineCycleSchedule(optax.schedules.Schedule):
+    def __init__(self, cycle: int, peak_value: float, min_value: float):
+        """Custom cosine cycle schedule."""
+        self.cycle = cycle
+        self.peak_value = peak_value
+        self.min_value = min_value
+
+    def __call__(self, step: int):
+        """Compute learning rate at a given step."""
+        cycle_pos = step % self.cycle  # Position within the cycle
+        cosine_decay = 0.5 * (1 + jnp.cos(jnp.pi * cycle_pos / self.cycle))  # Cosine decay
+        return self.min_value + (self.peak_value - self.min_value) * cosine_decay  # Scale
 
 
 def distribute_dataset(dataset, rank, size):
@@ -308,11 +312,13 @@ def distribute_dataset(dataset, rank, size):
 
     return [local_pores, local_kappas, local_fid]
 
+
 def mpi_allreduce_gradients(local_grads, comm):
     # Perform MPI Allreduce to accumulate gradients across all ranks
     return jax.tree_util.tree_map(
         lambda x: comm.allreduce(x, op=MPI.SUM), local_grads
     )
+
 
 def create_folders(model_name):
     os.makedirs(f"data/training_results/{model_name}", exist_ok=True)
@@ -320,19 +326,29 @@ def create_folders(model_name):
     os.makedirs(f"figures/models/{model_name}/training_evolution", exist_ok=True)
     os.makedirs(f"figures/models/{model_name}/final_validation", exist_ok=True)
 
-def choose_activation(activation):
 
+def choose_activation(activation, num_layers):
+    activation_functions = []
     if activation == "relu":
-        return nnx.relu
-    if activation == "hardtanh":
-        return hardtanh
+        activation_functions = [nnx.relu] * num_layers
+    elif activation == "hardtanh":
+        activation_functions = [hardtanh] * num_layers
+    elif activation == "mixed":
+        activation_functions = [nnx.relu] * (num_layers-1) 
+
+        activation_functions.append(hardtanh)
+
+        
+    
+    return activation_functions
+
     
 def final_validation(exp, model, model_name, dataset):
     pores, kappa, fid = dataset
     pores = pores.reshape((pores.shape[0], 25))
-    if "PEDS" in model_name:
+    if "PEDS" in model_name or "ATTEMPT" in model_name:
         kappa_pred, _ = model(pores)
-    
+
     else:
         kappa_pred = model(pores)
         kappa_pred = kappa_pred.squeeze(-1)
@@ -445,6 +461,7 @@ def update_curves(model_name):
         n_past_epoch = 0
     
     return n_past_epoch
+
 
 def plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min):
     try:

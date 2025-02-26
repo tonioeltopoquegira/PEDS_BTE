@@ -1,0 +1,24 @@
+Plan 1.1: keep size around 5-20, layer sizes [32, 64, 128, 256], change 0s to 1s?
+
+Plan 1: limit epochs to 20, optimize for target kappas, show the results comparing errors with ground truth.
+
+
+Plan 2: create low-fidelity dataset with up 100k points, train with Active learning, and try to get to 2%
+
+
+
+
+Meeting 02/20
+
+(1)     Fast Convergence good results! Also helped me thinking into some major 
+        improvements for training and initialization. This improvements could potentially help us
+        perform better and converge faster
+
+(2)     Started training with other dataset (oversampled extremes). Try generalization abilities
+
+
+ToDo:
+
+->      Initialization that makes all outputs positive (non-zero)... Issue is that cap value
+
+->      

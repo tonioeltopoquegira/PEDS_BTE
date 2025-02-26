@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import time
 
+from base_conductivity_grid_converter import conductivity_original_wrapper
+
 
 # Utilities of the low-fidelity solvers
 
@@ -105,15 +107,18 @@ def plot_gradients(base_conductivities, gradients, name_solver):
 
 def test_solver(solver, num_obs, name_solver, fd_check=False):
 
-    full_data = np.load("data/highfidelity/high_fidelity_10012_100steps.npz", allow_pickle=True)
+    full_data = np.load("data/highfidelity/high_fidelity_2_13000.npz", allow_pickle=True)
 
     pores = jnp.asarray(full_data['pores'], dtype=jnp.float32)
+    pores = pores.reshape((pores.shape[0], 5, 5))
     kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32)
-    base_conductivities = np.asarray(full_data['conductivity'], dtype=jnp.float32)
+
+    base_conductivities = conductivity_original_wrapper(pores, N=100)
 
     pores0 = jnp.zeros((1,5,5))
     kappas0 = 150.0
     base0 = jnp.ones((1, 100, 100))*150.0
+
 
     # Append the 0 observation as first of the dataset
     pores = jnp.vstack([pores0, pores])  # Add pores0 at the beginning
@@ -157,7 +162,7 @@ def test_solver(solver, num_obs, name_solver, fd_check=False):
         print("Finite Difference Check")
         cond_check = base_conductivities[2]
         cond_check = jnp.reshape(cond_check, (1, cond_check.shape[0], cond_check.shape[0]))
-        fd_grad = compute_fd_gradient(solver, cond_check, epsilon=1e-11) # 1e-9
+        fd_grad = compute_fd_gradient(solver, cond_check, epsilon=1e-6) # 1e-9
 
 
 

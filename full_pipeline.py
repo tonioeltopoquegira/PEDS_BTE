@@ -3,38 +3,43 @@ from mpi4py import MPI
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"  
 
 from flax import nnx
-import numpy as np
 
 from modules.data_ingestion import data_ingestion
 from modules.choose_model import select_model
 from modules.params_utils import initialize_or_restore_params
 from modules.training import train_model
+from modules.training_utils import create_folders
 
+# Initialize MPI
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()  # Current process ID
+size = comm.Get_size()  # Total number of processes
 
 # Experiment configuration
 exp = { "seed" : 42,
 
         # Data
         "filename_data" : "high_fidelity_2_13000.npz",
-        "train_size" : 8000,
-        "total_size" : 10000,
-        "stratified": False,
-        "multifidelity": False,
+        "train_size" : 12000,
+        "total_size" : 13000,
+        "stratified": "big->small",
 
         # Model
-        "model_name": "PEDS_gauss_5by5_lowval_100kparams",
+        "model_name": "generalization/PEDSres_gauss5_bigsmall",
         "model": "PEDS",
         "resolution": 5,
-        "learn_residual": False,
-        "hidden_sizes": [32, 64, 128, 256, 256],
-        "activation": "relu",
+        "learn_residual": True,
+        "hidden_sizes":[64, 256, 256],
+        "activation": "relu", #"relu", "hardtanh", "mixed"
         "solver": "gauss",
-        "init_min": 1e-12,
+        "init_min": 1e-16,
+        "initialization": "he",
+        "final_init": False,
 
         # Training
         "epochs": 3000,
-        "batch_size": 200,
-        "learn_rate_max": 5e-4,
+        "batch_size": 240,
+        "learn_rate_max": 1e-3,
         "learn_rate_min": 5e-5,
         "schedule": "cosine-cycles",
         "print_every": 10,
@@ -48,13 +53,16 @@ exp = { "seed" : 42,
 # Initialize random key
 rngs = nnx.Rngs(exp["seed"])
 
+create_folders(exp['model_name'])
+
 # Ingest data
 dataset_train, dataset_valid = data_ingestion(
+    rank = rank,
+    model_name = exp['model_name'],
     filename=exp["filename_data"], 
     train_size=exp["train_size"], 
     total_size=exp['total_size'],
-    stratified=exp["stratified"], 
-    multifidelity=exp["multifidelity"], 
+    stratified= exp['stratified'],
     key=rngs
 )
 
@@ -66,13 +74,10 @@ model = select_model(
     hidden_sizes=exp["hidden_sizes"], 
     activation=exp["activation"], 
     solver=exp["solver"],
-    init_min = exp['init_min']
+    init_min = exp['init_min'],
+    initialization= exp['initialization'],
+    final_init = exp['final_init']
 )
-
-# Initialize MPI
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()  # Current process ID
-size = comm.Get_size()  # Total number of processes
 
 if rank == 0:
     print(f"Training on {size} devices...")

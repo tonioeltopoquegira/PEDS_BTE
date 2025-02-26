@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import jax.lax as lax
 from flax import nnx
-from jax import debug
+from jax import debug, checkpoint
 import jax
 
 
@@ -42,12 +42,12 @@ def gauss_solver(conductivity, iterations=1000):
         return u_new, None
 
     # Use lax.scan to run iterations
-    Ts, _ = lax.scan(body_fn, u, None, length=iterations)
+    Ts, _ = lax.scan(checkpoint(body_fn), u, None, length=iterations) 
 
     return Ts
 
 
-@nnx.jit
+#@nnx.jit
 def update_step(kappa_sum, kappa_r, kappa_l, kappa_u, kappa_d, u_r, u_l, u_u, u_d):
     # Perform the update step using the shifted arrays
     u_new = ((
@@ -66,7 +66,7 @@ def update_step(kappa_sum, kappa_r, kappa_l, kappa_u, kappa_d, u_r, u_l, u_u, u_
     return u_new
 
 
-@nnx.jit
+#@nnx.jit
 def gauss_solver_finalstep(diffusivity, u):
 
     batch_size = diffusivity.shape[0]
@@ -98,7 +98,7 @@ def gauss_fwd(diffusivity, iterations=1000):
     Ts = gauss_solver(diffusivity, iterations=iterations)
     return Ts, (diffusivity, Ts)
 
-@nnx.jit
+#@nnx.jit
 def gauss_bwd(res, grads):
     """
     Backward function for fourier_solver.

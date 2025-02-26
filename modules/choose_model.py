@@ -10,15 +10,17 @@ def select_model(rngs, model_type, **kwargs):
             hidden_sizes=kwargs["hidden_sizes"], 
             activation=kwargs["activation"], 
             solver=kwargs["solver"],
-            init_min=kwargs['init_min']
+            init_min=kwargs['init_min'],
+            initialization=kwargs['initialization'],
+            final_init = kwargs['final_init']
         )
     elif model_type == "MLP":
         return mlp(
             layer_sizes=kwargs["hidden_sizes"],  # Assuming this maps correctly
-            activation=kwargs["activation"], 
+            activation=kwargs["activation"],
+            initialization=kwargs['initialization'], 
+            final_init = False,
             rngs=rngs
         )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
-
-    pass
