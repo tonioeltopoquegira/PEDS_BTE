@@ -36,7 +36,7 @@ def plot_temperature(base_conductivities, Temperatures, name_solver):
     fig.colorbar(im1, ax=axes[0], label='Temperature')
 
     contour_levels = np.linspace(Temperatures[0].min(), Temperatures[0].max(), 25)
-    axes[0].contour(masked_T0, levels=contour_levels, colors='white', linewidths=0.5)
+    #axes[0].contour(masked_T0, levels=contour_levels, colors='white', linewidths=0.5)
 
     # Second subplot for Heat Flux along x-direction
     norm_T1 = mcolors.Normalize(vmin=Temperatures[1].min(), vmax=Temperatures[1].max())
@@ -47,7 +47,7 @@ def plot_temperature(base_conductivities, Temperatures, name_solver):
     fig.colorbar(im2, ax=axes[1], label='Temperature')
 
     contour_levels1 = np.linspace(Temperatures[1].min(), Temperatures[1].max(), 25)
-    axes[1].contour(masked_T1, levels=contour_levels1, colors='white', linewidths=0.5)
+    #axes[1].contour(masked_T1, levels=contour_levels1, colors='white', linewidths=0.5)
 
     # Third subplot for Heat Flux along y-direction
     norm_T2 = mcolors.Normalize(vmin=Temperatures[2].min(), vmax=Temperatures[2].max())
@@ -58,7 +58,7 @@ def plot_temperature(base_conductivities, Temperatures, name_solver):
     fig.colorbar(im3, ax=axes[2], label='Temperature')
 
     contour_levels2 = np.linspace(Temperatures[2].min(), Temperatures[2].max(), 25)
-    axes[2].contour(masked_T2, levels=contour_levels2, colors='white', linewidths=0.5)
+    #axes[2].contour(masked_T2, levels=contour_levels2, colors='white', linewidths=0.5)
 
     plt.tight_layout()
     temp_save_path = f"figures/test_solvers/{name_solver}_temperatures_and_flux_SIUUUM.png"
@@ -105,19 +105,19 @@ def plot_gradients(base_conductivities, gradients, name_solver):
     
 
 
-def test_solver(solver, num_obs, name_solver, fd_check=False):
+def test_solver(solver, num_obs, name_solver, fd_check=False, size=100):
 
-    full_data = np.load("data/highfidelity/high_fidelity_2_13000.npz", allow_pickle=True)
+    full_data = np.load("data/highfidelity/high_fidelity_2_16000.npz", allow_pickle=True)
 
     pores = jnp.asarray(full_data['pores'], dtype=jnp.float32)
     pores = pores.reshape((pores.shape[0], 5, 5))
     kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32)
 
-    base_conductivities = conductivity_original_wrapper(pores, N=100)
+    base_conductivities = conductivity_original_wrapper(pores, N=size)
 
     pores0 = jnp.zeros((1,5,5))
     kappas0 = 150.0
-    base0 = jnp.ones((1, 100, 100))*150.0
+    base0 = jnp.ones((1, size, size))*150.0
 
 
     # Append the 0 observation as first of the dataset
@@ -151,39 +151,40 @@ def test_solver(solver, num_obs, name_solver, fd_check=False):
         #return jnp.sum(Ts**2)  # Interesting for gradient evaluation or jnp.sum(Ts)
 
     t_backward = time.time()
-    #value, grads = jax.value_and_grad(loss)(base_conductivities[:3])
+    value, grads = jax.value_and_grad(loss)(base_conductivities[:3])
     t_backward = time.time() - t_backward
-    print(f"Backward computation time: {t_backward} seconds.")
+    #print(f"Backward computation time: {t_backward} seconds.")
 
     # Plot and save the first three gradients
-    #plot_gradients(base_conductivities, grads[:3].squeeze(), name_solver)
+    plot_gradients(base_conductivities, grads[:3].squeeze(), name_solver)
 
     if fd_check:
         print("Finite Difference Check")
-        cond_check = base_conductivities[2]
-        cond_check = jnp.reshape(cond_check, (1, cond_check.shape[0], cond_check.shape[0]))
-        fd_grad = compute_fd_gradient(solver, cond_check, epsilon=1e-6) # 1e-9
+        cond_check = base_conductivities[2:9]
+        #cond_check = jnp.reshape(cond_check, (1, cond_check.shape[0], cond_check.shape[0]))
+        #fd_grad = compute_fd_gradient(solver, cond_check, epsilon=1e-6) # 1e-9
 
 
 
         # finally sum all of them or accumulate all (i,j) ansd give the full gradient. So every grad in fd_grad is gradient wrt a entry of cond
-
+        t = time.time()
         grads = jax.grad(lambda cond: jnp.sum(solver(cond)))(cond_check)
+        print(time.time() - t)
 
-        grads = jnp.reshape(grads, (100,100))
-        fd_grad = jnp.reshape(fd_grad, (100, 100))
+        grads = jnp.reshape(grads[0], (size,size))
+        #fd_grad = jnp.reshape(fd_grad, (size, size))
         # print both of them in a box plot
         # Visualization: Box Plot
         # Visualization: Heatmaps
         # Set up the figure and axes
         fig, axes = plt.subplots(1, 2, figsize=(12, 6), constrained_layout=True)
 
-        # Heatmap for Finite Difference Gradient
+        """# Heatmap for Finite Difference Gradient
         axes[0].set_title("Finite Difference Gradient (Total Effect)")
         img1 = axes[0].imshow(fd_grad, cmap='viridis', interpolation='nearest')
         fig.colorbar(img1, ax=axes[0], label='Gradient Value')
         axes[0].set_xlabel("Column Index")
-        axes[0].set_ylabel("Row Index")
+        axes[0].set_ylabel("Row Index")"""
 
         # Heatmap for Automatic Differentiation Gradient
         axes[1].set_title("Automatic Differentiation / Custom Adjoint Gradient")

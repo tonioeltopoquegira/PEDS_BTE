@@ -10,6 +10,15 @@ import jax.numpy as jnp
 def get_shapes(params):
     return jax.tree_util.tree_map(lambda x: x.shape if isinstance(x, jnp.ndarray) else None, params)
 
+def filter_dropout(state):
+    if 'generator' in state:
+        generator_state = state['generator']
+        if 'dropout' in generator_state:
+            del generator_state['dropout']
+    
+    if 'dropout' in state:
+        del state['dropout']
+    return state
 
 # Function for initializing or restoring model parameters
 def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"):
@@ -40,6 +49,8 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
     # Generate the abstract model
     graphdef, abstract_state = nnx.split(generator)
 
+    #abstract_state = filter_dropout(abstract_state)
+
     try:
         last_checkpoint = max(
             (d for d in ckpt_dir.iterdir() if d.is_dir()),  # Consider all directories
@@ -52,6 +63,8 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
         try:
             checkpoint_to_restore = os.path.abspath(last_checkpoint)
             state_restored = checkpointer.restore(checkpoint_to_restore , abstract_state)
+            state_restored = filter_dropout(state_restored)
+            
             if rank ==0:
                 print(f"Successfully restored state from {last_checkpoint} and training curves")
         except Exception as e:
@@ -74,6 +87,9 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
 def save_params(model_name, generator, checkpointer, epoch=None):
 
     _, state = nnx.split(generator)
+    
+    state = filter_dropout(state)
+  
     #nnx.display(state)
     base_dir = os.path.abspath(f'weights/{model_name}')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M')  # e.g., "20241213_123456"

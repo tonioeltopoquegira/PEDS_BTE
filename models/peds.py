@@ -10,7 +10,7 @@ class PEDS(nnx.Module):
 
     def __init__(self, resolution:int, 
                 learn_residual: bool, hidden_sizes:list, activation:str,
-                solver:str, init_min:float, initialization:str, final_init:bool):
+                solver:str, init_min:float, initialization:str, reg:bool, final_init:bool):
         super().__init__()
 
         # 100 nanometers / step_size nanometer
@@ -25,19 +25,21 @@ class PEDS(nnx.Module):
         # Create model
         key = nnx.Rngs(42)
 
-        self.generator = mlp(layer_sizes=self.layer_sizes, activation = activation, rngs=key, initialization=initialization, final_init = final_init) # 
+        self.generator = mlp(layer_sizes=self.layer_sizes, activation = activation, rngs=key, initialization=initialization, reg = reg, final_init = final_init) # 
         
         # Low Fidelity Solver
         self.lowfidsolver = lowfid(solver=solver, iterations=1000)
     
-    def __call__(self, pores): # Here
+    def __call__(self, pores, training=False): # Here
 
         batch_size = pores.shape[0]
 
-        pores_new = 1 - jnp.reshape(pores, (batch_size, 25)) 
+        pores = jnp.reshape(pores, (batch_size,25))
+
+        #pores_new = 1 - jnp.reshape(pores, (batch_size, 25)) 
 
         # Process data through the generator (MLP)
-        conductivity_generated = nnx.jit(self.generator)(pores_new)
+        conductivity_generated = nnx.jit(self.generator, static_argnames=("training",))(pores, training)
         conductivities = None
 
         # Reshape the output

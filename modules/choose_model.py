@@ -12,6 +12,7 @@ def select_model(rngs, model_type, **kwargs):
             solver=kwargs["solver"],
             init_min=kwargs['init_min'],
             initialization=kwargs['initialization'],
+            reg = kwargs['reg'],
             final_init = kwargs['final_init']
         )
     elif model_type == "MLP":
@@ -19,6 +20,7 @@ def select_model(rngs, model_type, **kwargs):
             layer_sizes=kwargs["hidden_sizes"],  # Assuming this maps correctly
             activation=kwargs["activation"],
             initialization=kwargs['initialization'], 
+            reg = kwargs['reg'],
             final_init = False,
             rngs=rngs
         )

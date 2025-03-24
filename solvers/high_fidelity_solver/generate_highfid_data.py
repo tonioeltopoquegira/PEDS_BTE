@@ -9,7 +9,7 @@ import re
 # make it such that the results only store pores and kappas. With stores in a single 1D array and kappa a float
 
 # Number of data points to generate
-num_data_points = 1000
+num_data_points = 1500
 step_size = 2
 perc = 0.5
 

@@ -3,6 +3,10 @@ import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve
 import jax
 import matplotlib.pyplot as plt
+import time
+
+
+import sparse 
 
 def laplacian(conductivity, h=1.0):
     """
@@ -66,18 +70,19 @@ def laplacian(conductivity, h=1.0):
     
     C_batch = sp.diags(conductivity_flat, 0, format="csr")
 
-    L = -(L_batch.T @ C_batch @ L_batch)
+    L_final = -(L_batch.T @ C_batch @ L_batch)
 
-    return L, Kx, Ky
+
+    return L_final, L
 
 @jax.custom_vjp
 def fd_diffusion(conductivity):
 
     batch_size, N_cells, _ = conductivity.shape 
 
-    L, _, _  = laplacian(conductivity)
+    L, _ = laplacian(conductivity)
 
-    #assert np.allclose(L[0].toarray(), L[0].toarray().transpose()), "L is not symmetric!"
+    #assert np.allclose(L[0].toarray(), L[0].toarray().transpose()), "L is not symmetric!"I 
     #print("Assertion passed! L is Self-Adjoint!!")
     
     # Source term calculation
@@ -93,7 +98,7 @@ def fd_diffusion(conductivity):
     # Reshape the solution to 2D
     T = T_flat.reshape((batch_size, N_cells, N_cells))
 
-    return 150.0 * T  
+    return 150.0 * T
 
 
 def fd_fwd(conductivity):
@@ -105,31 +110,37 @@ def fd_bwd(res, dl_dT):
 
     K, T = res
 
-    batch_size, n, _ = K.shape
+    batch_size, N_cells, _ = T.shape
+    
+    L, L_small = laplacian(K)
 
-    L, Kx, Ky = laplacian(K)
+    L_repeated_list = [L_small] * batch_size
 
-    lambd = spsolve(L.transpose(), dl_dT.flatten())
+    L_batch_sparse= sp.vstack(L_repeated_list)
 
-    lambd = np.reshape(lambd, K.shape)
+    L_batch_sparse = sparse.COO(L_batch_sparse)
 
-    dL_dKy = (Ky.T @ Ky)
-    dL_dKx = (Kx.T @ Kx)
+    N_cells_sq = N_cells**2
 
-    dL_dKy = sp.block_diag([dL_dKy] * batch_size, format = 'csr')
-    dL_dKx = sp.block_diag([dL_dKx] * batch_size, format = 'csr')
+    L_batch_sparse = L_batch_sparse.reshape((batch_size, 2 * N_cells_sq, N_cells_sq))
 
+    dL_dk_tiled_sparse = -sparse.einsum('bri,brj->bijr', L_batch_sparse, L_batch_sparse)
+   
+    dL_dk_sparse = dL_dk_tiled_sparse.reshape(( batch_size, N_cells_sq, N_cells_sq, 2, N_cells, N_cells))
 
-    rhs_1 = dL_dKy @ T.flatten() 
+    dL_dk_sparse = dL_dk_sparse.sum(axis=3)
 
-    rhs_0 = dL_dKx @ T.flatten()
+    dL_dk_sparse = dL_dk_sparse.reshape((batch_size, N_cells_sq,N_cells_sq, N_cells, N_cells))
 
-    rhs_0 = rhs_0.reshape(K.shape)
-    rhs_1 = rhs_1.reshape(K.shape)
+    lambd = spsolve(L, dl_dT.flatten())
 
-    df_dK = - lambd * (-rhs_1+rhs_0)
+    lambd = lambd.reshape((batch_size, N_cells_sq))
+    T = T.reshape((batch_size, N_cells_sq))
 
-    return ( df_dK,)
+    dfdK_sparse = sparse.einsum('hi,hijab,hj->hab', lambd, dL_dk_sparse, T)
+    dfdK_sparse = dfdK_sparse.reshape(K.shape)
+
+    return (-dfdK_sparse.todense(),)
 
 
 

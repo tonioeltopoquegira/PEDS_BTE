@@ -11,7 +11,7 @@ N = int(100 / step_size)
 
 
 def optimized_conductivity_grid_jax(pores, N):
-    step_size = int(100 / N)
+    step_size = 100 / N
     size_square = int(10 * 1 / step_size)
     half_size_square = size_square // 2
     subgrid = jnp.ones((size_square, size_square)) * 1e-9

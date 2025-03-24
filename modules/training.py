@@ -18,7 +18,7 @@ from models.peds import PEDS
 def train_model(exp,
                 model_name,
                 dataset_train, dataset_valid, 
-                model,
+                model, reg,
                 learn_rate_max, learn_rate_min, schedule,  epochs, batch_size,
                 checkpointer,
                 print_every = 100): 
@@ -43,7 +43,7 @@ def train_model(exp,
         
         if isinstance(model, PEDS):
             def loss_fn(model):
-                kappa_pred, conductivity_res = model(pores) # change here
+                kappa_pred, conductivity_res = model(pores, True) # change here
                 if (epoch+1) % 100 == 0 and batch_n == 0 and rank == 0:
                     print_generated(model, pores, conductivity_res, epoch+1+n_past_epoch, model_name, kappa_pred, kappas) # change here
                 residuals = kappa_pred - kappas
@@ -53,7 +53,7 @@ def train_model(exp,
         else:
             def loss_fn(model):
                 pores_reshaped = jnp.reshape(pores, (pores.shape[0], 25))
-                kappa_pred = model(pores_reshaped)
+                kappa_pred = model(pores_reshaped, True)
                 kappa_pred = jnp.squeeze(kappa_pred, -1)
                 residuals = kappa_pred - kappas
                 residuals_weighted = residuals * fid

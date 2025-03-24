@@ -72,17 +72,17 @@ def print_generated(model, pores, conductivity_res, epoch, model_name, kappa_pre
         fig, axes = plt.subplots(3, 2, figsize=(12, 9), gridspec_kw={"width_ratios": [1, 1]})
 
         # Define the range for the color map to ensure all plots use the same scale
-        vmin = min(np.min(c) for c in conductivities_numpy + conductivity_res_numpy)
-        vmax = max(np.max(c) for c in conductivities_numpy + conductivity_res_numpy)
+        vmin = min(np.min(c) for c in conductivity_res_numpy)
+        vmax = max(np.max(c) for c in conductivity_res_numpy)
 
         # Plot the conductivities and residuals in the subplots
         for i in range(3):
             # Base conductivity
-            axes[i, 0].imshow(conductivities_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
+            """axes[i, 0].imshow(conductivities_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
             if i == 0:
                 axes[i, 0].set_title('Base Conductivity')
             if i == 1:
-                axes[i, 0].set_ylabel('y direction')
+                axes[i, 0].set_ylabel('y direction')"""
 
             # Generated conductivity
             im2 = axes[i, 1].imshow(conductivity_res_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
@@ -419,7 +419,7 @@ def final_validation(exp, model, model_name, dataset):
     plt.close()
 
     # Create bins based on 0.1 percentiles of 'kappa_true'
-    results['percentile_bin'] = pd.qcut(results['kappa_true'], q=10, precision=3)
+    results['percentile_bin'] = pd.qcut(results['kappa_true'], q=6, precision=3, duplicates="drop")
 
     # Compute the average error for each bin
     error_stats = results.groupby('percentile_bin', observed=False)['error'].mean().reset_index()

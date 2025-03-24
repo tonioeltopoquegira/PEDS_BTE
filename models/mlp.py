@@ -5,8 +5,10 @@ from modules.training_utils import choose_activation
 
 class mlp(nnx.Module):
 
-    def __init__(self, layer_sizes: list, activation: str, initialization: str, rngs: nnx.Rngs, final_init=False):
+    def __init__(self, layer_sizes: list, activation: str, initialization: str, reg:bool, rngs: nnx.Rngs, final_init=False):
         super().__init__()
+
+        self.reg = reg
 
         if initialization == "he":
             dense_init = nnx.initializers.kaiming_normal()
@@ -26,10 +28,17 @@ class mlp(nnx.Module):
         
         self.activations = choose_activation(activation, len(self.layers))
 
-    def __call__(self, x):
+        self.dropout = [nnx.Dropout(0.4, rngs=rngs) for _ in self.layers[:-1]]  # No dropout on final layer
+
+
+    def __call__(self, x, training=False):
         for en, (layer, activation_fn) in enumerate(zip(self.layers, self.activations)):
             x = layer(x)
             x = activation_fn(x)  # Apply the activation function for this layer
+           
+
+            if training and en < len(self.layers) - 1 and self.reg:  # Avoid dropout on last layer
+                x = self.dropout[en](x, deterministic=training, rngs=nnx.Rngs(42))
     
         return x
 
