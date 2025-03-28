@@ -10,7 +10,7 @@ class PEDS(nnx.Module):
 
     def __init__(self, resolution:int, 
                 learn_residual: bool, hidden_sizes:list, activation:str,
-                solver:str, init_min:float, initialization:str, reg:bool, final_init:bool):
+                solver:str, initialization:str):
         super().__init__()
 
         # 100 nanometers / step_size nanometer
@@ -18,14 +18,11 @@ class PEDS(nnx.Module):
         self.layer_sizes = [25] + hidden_sizes + [resolution**2]
         self.activation = activation
         self.learn_residual = learn_residual
-        self.init_min = init_min
-
-
 
         # Create model
         key = nnx.Rngs(42)
 
-        self.generator = mlp(layer_sizes=self.layer_sizes, activation = activation, rngs=key, initialization=initialization, reg = reg, final_init = final_init) # 
+        self.generator = mlp(layer_sizes=self.layer_sizes, activation = activation, rngs=key, initialization=initialization) # 
         
         # Low Fidelity Solver
         self.lowfidsolver = lowfid(solver=solver, iterations=1000)
@@ -51,11 +48,11 @@ class PEDS(nnx.Module):
             conductivity_generated = conductivity_generated+conductivities 
 
         if self.activation =="relu":
-            conductivity_generated = jnp.maximum(conductivity_generated, self.init_min)
+            conductivity_generated = jnp.maximum(conductivity_generated,1e-16) # make it bigger if instability with numerical method
+
         
     
         kappa = self.lowfidsolver(conductivity_generated) 
 
-        
         return kappa, conductivity_generated
 

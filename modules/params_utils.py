@@ -37,7 +37,10 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
         model: nnx.Model
             The initialized or restored model.
     """
+
+
     # Define paths
+    base_dir = "experiments/" + base_dir + "/weights"
     ckpt_dir = Path(base_dir) / model_name
     
     # Ensure checkpoint directory exists
@@ -84,14 +87,14 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
 
     return model, checkpointer
 
-def save_params(model_name, generator, checkpointer, epoch=None):
+def save_params(exp_name, model_name, generator, checkpointer, epoch=None):
 
     _, state = nnx.split(generator)
     
-    state = filter_dropout(state)
+    state = filter_dropout(state) # check if this one works
   
     #nnx.display(state)
-    base_dir = os.path.abspath(f'weights/{model_name}')
+    base_dir = os.path.abspath(f'experiments/{exp_name}/weights/{model_name}')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M')  # e.g., "20241213_123456"
     if epoch is None:
         timestamp = f'final_' + timestamp

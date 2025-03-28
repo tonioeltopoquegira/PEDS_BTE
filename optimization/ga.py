@@ -15,7 +15,7 @@ def prng_key_to_int(key):
     """Convert a JAX PRNGKey to an integer."""
     return int(jax.random.randint(key, (), 0, 2*10))  # Convert to a sa
 
-def genetic_algorithm(model, target, out, seed, n=25, pop_size=100, generations=40, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05):
+def genetic_algorithm(model, target, seed, n=25, pop_size=100, generations=40, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05):
     """
     Runs a genetic algorithm to optimize a design given a model and a target value.
     
@@ -68,12 +68,13 @@ def genetic_algorithm(model, target, out, seed, n=25, pop_size=100, generations=
         batch = np.array(population)  # Shape: (pop_size, n)
         if isinstance(model, PEDS):
             batch = batch.reshape((batch.shape[0], 5, 5))  # Shape: (batch_size, 1, 5, 5)
-        if out == "peds":
+        if isinstance(model, PEDS):
             kappas, _ = model(batch)  # Shape: (batch_size, kappas)
         
         else:
             kappas = model(batch)
 
+       
         # Compute fitness as the absolute difference from the target
         return [(np.abs(kappa - target),) for kappa in kappas]
 
@@ -125,7 +126,7 @@ def genetic_algorithm(model, target, out, seed, n=25, pop_size=100, generations=
     hof_list = hof[0].tolist()
     hof_array = np.array(hof_list)
 
-    if out == "peds":
+    if isinstance(model, PEDS):
         hof_array_resh = hof_array.reshape((1,5,5))
         k_pred, _ = model(hof_array_resh)
     else:

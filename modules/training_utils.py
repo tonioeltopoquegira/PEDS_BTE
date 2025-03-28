@@ -25,7 +25,7 @@ def data_loader(*arrays, batch_size):
         batch_indices = indices[start_idx:start_idx + batch_size]
         yield tuple(array[batch_indices] for array in arrays)
 
-def print_generated(model, pores, conductivity_res, epoch, model_name, kappa_predicted, kappa_target):
+def print_generated(model, pores, conductivity_res, epoch, model_name, exp_name, kappa_predicted, kappa_target):
     # Ensure the arrays are NumPy arrays and detach from the computation graph
     conductivities_numpy = np.array(conductivity_original_wrapper(pores[:3], conductivity_res.shape[-1]))
     conductivity_res_numpy = [np.asarray(jax.lax.stop_gradient(r)) for r in conductivity_res[:3]]
@@ -101,7 +101,7 @@ def print_generated(model, pores, conductivity_res, epoch, model_name, kappa_pre
 
     
     # Save the figure
-    plt.savefig(f"figures/models/{model_name}/training_evolution/conductivities_epoch_{epoch}.png")
+    plt.savefig(f"experiments/{exp_name}/figures/peds_evolution/{model_name}/conductivities_epoch_{epoch}.png")
     plt.close()
 
 
@@ -109,7 +109,7 @@ def clip_gradients(grads, clip_value=1.0):
     return jax.tree_util.tree_map(lambda g: jnp.clip(g, -clip_value, clip_value), grads)
 
 
-def plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, model_name, epoch, learn_rate_max, learn_rate_min):
+def plot_learning_curves(exp_name, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, model_name, epoch, learn_rate_max, learn_rate_min):
     """Plot the learning curve and validation percentage losses."""
     epochs = jnp.arange(epoch)
 
@@ -136,7 +136,7 @@ def plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_los
 
     # Save the figure
     plt.tight_layout()
-    plt.savefig(f"figures/models/{model_name}/learning_curve_{schedule}.png")
+    plt.savefig(f"{exp_name}/figures/learning_curve_{model_name}.png")
     plt.close()
 
     # Create a figure with two subplots
@@ -165,7 +165,7 @@ def plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_los
 
     # Save the figure
     plt.tight_layout()
-    plt.savefig(f"figures/models/{model_name}/learning_curve_{schedule}_time.png")
+    plt.savefig(f"{exp_name}/figures/learning_curve_{model_name}.png")
     plt.close()
 
 
@@ -213,10 +213,10 @@ def accumulate_gradients(total_grads, new_grads):
 #@nnx.jit
 def hardtanh(x):
     """Hard tanh activation: max(-1, min(1, x))."""
-    return jnp.clip(x, 0.01, 160.0)
+    return jnp.clip(x, 1e-16, 160.0)
 
 
-def choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs, model_name, n_past_epochs):
+def choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs, exp_name, n_past_epochs):
     
     if schedule == "cosine-decay":
         lr_schedule = optax.cosine_decay_schedule(
@@ -244,12 +244,12 @@ def choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs, mode
         return lr_schedule
     
     
-    save_dir = f"figures/models/{model_name}"
+    save_dir = f"experiments/{exp_name}/figures"
     os.makedirs(save_dir, exist_ok=True)
 
     if rank == 0 and n_past_epochs == 0:
 
-        steps = np.arange(epochs)
+        steps = np.arange(100)
         lr_values = np.array([lr_schedule(step) for step in steps])
         # Plotting the learning rate schedule
         plt.plot(steps, lr_values, label=schedule)
@@ -293,7 +293,7 @@ def distribute_dataset(dataset, rank, size):
     Returns:
     - Local dataset for this rank.
     """
-    pores, kappas, fid = dataset
+    pores, kappas = dataset
 
     # Determine chunk size per rank
     n_samples = pores.shape[0]
@@ -308,9 +308,8 @@ def distribute_dataset(dataset, rank, size):
     # Slice the dataset for this rank
     local_pores = pores[start_idx:end_idx]
     local_kappas = kappas[start_idx:end_idx]
-    local_fid = fid[start_idx:end_idx]
 
-    return [local_pores, local_kappas, local_fid]
+    return [local_pores, local_kappas]
 
 
 def mpi_allreduce_gradients(local_grads, comm):
@@ -318,13 +317,6 @@ def mpi_allreduce_gradients(local_grads, comm):
     return jax.tree_util.tree_map(
         lambda x: comm.allreduce(x, op=MPI.SUM), local_grads
     )
-
-
-def create_folders(model_name):
-    os.makedirs(f"data/training_results/{model_name}", exist_ok=True)
-    os.makedirs(f"figures/models/{model_name}", exist_ok=True)
-    os.makedirs(f"figures/models/{model_name}/training_evolution", exist_ok=True)
-    os.makedirs(f"figures/models/{model_name}/final_validation", exist_ok=True)
 
 
 def choose_activation(activation, num_layers):
@@ -342,116 +334,6 @@ def choose_activation(activation, num_layers):
     
     return activation_functions
 
-    
-def final_validation(exp, model, model_name, dataset):
-    pores, kappa, fid = dataset
-    pores = pores.reshape((pores.shape[0], 25))
-    if "PEDS" in model_name or "ATTEMPT" in model_name:
-        kappa_pred, _ = model(pores)
-
-    else:
-        kappa_pred = model(pores)
-        kappa_pred = kappa_pred.squeeze(-1)
-    error = np.abs(kappa_pred - kappa) / np.abs(kappa_pred)
-
-    # Create a DataFrame with results
-    results_df = pd.DataFrame({
-        "pores": list(pores),
-        "kappa_true": kappa,
-        "kappa_pred": kappa_pred,
-        "error": error
-    })
-
-    # Define the output directory and ensure it exists
-    output_dir = f"data/training_results/{model_name}/"
-    
-    # Save the dataset to a CSV file
-    output_path = os.path.join(output_dir, "error_results.csv")
-    results_df.to_csv(output_path, index=False)
-    
-    print(f"Results saved to {output_path}")
-
-    print("Error Validation results")
-
-    results = pd.read_csv(f"data/training_results/{model_name}/error_results.csv")
-
-    # Plot KDE for 'kappa_true' and 'kappa_pred'
-    plt.figure(figsize=(10, 6))
-    sns.kdeplot(results['kappa_true'], label='Kappa True', color='blue', fill=True, alpha=0.4)
-    sns.kdeplot(results['kappa_pred'], label='Kappa Pred', color='orange', fill=True, alpha=0.4)
-
-    # Customize the plot
-    plt.title(f'Estimated Probability Distribution of Kappa {model_name}', fontsize=16)
-    plt.xlabel('Kappa Value', fontsize=14)
-    plt.ylabel('Density', fontsize=14)
-    plt.legend(fontsize=12)
-    plt.grid(alpha=0.3)
-
-    # Show the plot
-    plt.tight_layout()
-    plt.savefig(f"figures/models/{model_name}/final_validation/prob_density_kappa.png")
-    plt.close()
-
-    # Compute overestimation and underestimation
-    results['error_type'] = results['kappa_pred'] > results['kappa_true']  # True if overestimated
-
-    # Scatter plot of error type
-    plt.figure(figsize=(12, 6))
-    sns.scatterplot(
-        data=results,
-        x='kappa_true',
-        y=abs(results['kappa_pred'] - results['kappa_true'])/abs(results['kappa_true']),
-        hue='error_type',
-        palette={True: 'red', False: 'green'},
-        alpha=0.6
-    )
-
-    # Customize the plot
-    plt.title(f'Error Distribution {model_name} (Overestimatio (red) vs Underestimation (green))', fontsize=16)
-    plt.xlabel('Kappa True', fontsize=14)
-    plt.ylabel('Absolute Error Magnitude', fontsize=14)
-    plt.legend(title='Error Type', fontsize=12)
-    plt.grid(alpha=0.3)
-
-    # Show the plot
-    plt.tight_layout()
-    plt.savefig(f"figures/models/{model_name}/final_validation/error_distribution.png")
-    plt.close()
-
-    # Create bins based on 0.1 percentiles of 'kappa_true'
-    results['percentile_bin'] = pd.qcut(results['kappa_true'], q=6, precision=3, duplicates="drop")
-
-    # Compute the average error for each bin
-    error_stats = results.groupby('percentile_bin', observed=False)['error'].mean().reset_index()
-
-    # Plot the average error for each percentile bin
-    plt.figure(figsize=(12, 6))
-    sns.barplot(data=error_stats, x='percentile_bin', y='error', palette='Blues', hue='percentile_bin', dodge=False)
-
-
-    # Customize the plot
-    plt.title(f'Average Error {model_name}', fontsize=16)
-    plt.xlabel('Kappa True Percentile Bin', fontsize=14)
-    plt.ylabel('Average Error', fontsize=14)
-    plt.xticks(rotation=45, fontsize=12)
-    plt.grid(alpha=0.3)
-
-    plt.legend([], [], frameon=False)
-
-    # Show the plot
-    plt.tight_layout()
-    plt.savefig(f"figures/models/{model_name}/final_validation/binned_error_distribution.png")
-    plt.close()
-
-
-    # Write in a text the configuration
-    save_path = f"data/training_results/{model_name}/configurations.txt"
-
-    with open(save_path, "w") as f:
-        json.dump(exp, f, indent=4)
-
-    print(f"Experiment configuration saved at: {save_path}")
-
 
 def update_curves(model_name):
     try:
@@ -463,9 +345,9 @@ def update_curves(model_name):
     return n_past_epoch
 
 
-def plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min):
+def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min):
     try:
-        curves = np.load(f"data/training_results/{model_name}/training_curves.npz", allow_pickle=True)
+        curves = np.load(f"experiments/{exp_name}/curves/training_curves_{model_name}.npz", allow_pickle=True)
         
         # Concatenate only new data
         epoch_times_tot = np.concatenate([curves['epoch_times'][:n_past_epoch], epoch_times[:epoch]])
@@ -477,9 +359,9 @@ def plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, ep
         epoch_tot = len(epoch_losses_tot)
         
         # Plot and save
-        plot_learning_curves(epoch_times_tot, epoch_losses_tot, valid_losses_tot, valid_perc_losses_tot, schedule, model_name, epoch_tot, learn_rate_max, learn_rate_min)
+        #plot_learning_curves(epoch_times_tot, epoch_losses_tot, valid_losses_tot, valid_perc_losses_tot, schedule, model_name, epoch_tot, learn_rate_max, learn_rate_min)
         np.savez(
-            f"data/training_results/{model_name}/training_curves.npz", 
+            f"experiments/{exp_name}/curves/training_curves_{model_name}.npz", 
             epoch_times=epoch_times_tot, 
             epoch_losses=epoch_losses_tot,
             valid_losses=valid_losses_tot, 
@@ -488,9 +370,9 @@ def plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, ep
         )
     except Exception as e:
         print(f"No training curves file: {e}. Creating new one.")
-        plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, model_name, epoch, learn_rate_max, learn_rate_min)
+        #plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, model_name, epoch, learn_rate_max, learn_rate_min)
         np.savez(
-            f"data/training_results/{model_name}/training_curves.npz", 
+            f"experiments/{exp_name}/curves/training_curves_{model_name}.npz", 
             epoch_times=epoch_times, 
             epoch_losses=epoch_losses,
             valid_losses=valid_losses, 

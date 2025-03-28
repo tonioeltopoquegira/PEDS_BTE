@@ -10,44 +10,39 @@ from flax import nnx
 import jax
 
 from modules.params_utils import save_params
-from modules.training_utils import data_loader, print_generated, update_and_check_grads, clip_gradients, plot_update_learning_curves, choose_schedule, accumulate_gradients, distribute_dataset, mpi_allreduce_gradients, final_validation, update_curves
+from modules.training_utils import data_loader, print_generated, update_and_check_grads, clip_gradients, plot_update_learning_curves, choose_schedule, accumulate_gradients, distribute_dataset, mpi_allreduce_gradients, update_curves
 from models.peds import PEDS
 
 
 
-def train_model(exp,
-                model_name,
-                dataset_train, dataset_valid, 
-                model, reg,
+def train_model(exp_name, model_name,
+                dataset_train, dataset_test, 
+                model,
                 learn_rate_max, learn_rate_min, schedule,  epochs, batch_size,
-                checkpointer,
-                print_every = 100): 
+                checkpointer): 
 
     # Initialize MPI
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()  # Current process ID
     size = comm.Get_size()  # Total number of processes
 
-    
-
     n_past_epoch = update_curves(model_name)
-    exp['epochs'] = exp['epochs'] + n_past_epoch
 
     # Scheduler optimizer
-    lr_schedule = choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs,model_name, n_past_epoch)
+    lr_schedule = choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs, exp_name, n_past_epoch)
     optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
 
     def train_step(batch_local, epoch, batch_n, rank):
 
-        pores, kappas, fid = batch_local
+        pores, kappas = batch_local
         
         if isinstance(model, PEDS):
             def loss_fn(model):
                 kappa_pred, conductivity_res = model(pores, True) # change here
-                if (epoch+1) % 100 == 0 and batch_n == 0 and rank == 0:
-                    print_generated(model, pores, conductivity_res, epoch+1+n_past_epoch, model_name, kappa_pred, kappas) # change here
+                if (epoch+1+n_past_epoch) in [1, 2, 4, 7, 11, 17, 26, 39, 58, 86, 130, 195, 293, 440, 660, 999] and batch_n == 0 and rank == 0:
+                    print_generated(model, pores, conductivity_res, epoch+1+n_past_epoch, model_name, exp_name, kappa_pred, kappas) # change here
                 residuals = kappa_pred - kappas
-                residuals_weighted = residuals * fid
+                residuals_weighted = residuals
                 loss = jnp.sum(residuals_weighted**2)
                 return loss
         else:
@@ -56,7 +51,7 @@ def train_model(exp,
                 kappa_pred = model(pores_reshaped, True)
                 kappa_pred = jnp.squeeze(kappa_pred, -1)
                 residuals = kappa_pred - kappas
-                residuals_weighted = residuals * fid
+                residuals_weighted = residuals
                 loss = jnp.sum(residuals_weighted**2)
                 return loss
             
@@ -74,7 +69,7 @@ def train_model(exp,
         total_error_perc  = 0.0
 
         for en, val_batch in enumerate(data_loader(*dataset, batch_size=batch_size)):
-            val_pores, val_kappas, fid = val_batch
+            val_pores, val_kappas = val_batch
 
             if isinstance(model, PEDS):
                 kappa_val, _ = model(val_pores) # here
@@ -97,6 +92,7 @@ def train_model(exp,
 
     if rank == 0:
         print(f"Past epochs: {n_past_epoch}")
+        sys.stdout.flush()
 
     epoch_losses = np.zeros(epochs) 
     valid_losses = np.zeros(epochs)
@@ -105,9 +101,7 @@ def train_model(exp,
 
     # Shard training and validation datasets
     dataset_train_local = distribute_dataset(dataset_train, rank, size)
-    dataset_valid_local = distribute_dataset(dataset_valid, rank, size)
-
-    sys.stdout.flush()
+    dataset_test_local = distribute_dataset(dataset_test, rank, size)
 
     for epoch in range(epochs):
 
@@ -125,7 +119,6 @@ def train_model(exp,
 
             grads = accumulate_gradients(grads, mpi_allreduce_gradients(local_grads, comm))
         
-
         # Update of parameters! # should we impose it to be done when rank ==1?
         
         optimizer.update(grads)
@@ -134,7 +127,7 @@ def train_model(exp,
             jax.clear_caches()
 
         # Validation step
-        avg_val_loss, total_loss_perc = valid_step(dataset_valid_local, batch_size, comm, valid_size = dataset_valid[0].shape[0])
+        avg_val_loss, total_loss_perc = valid_step(dataset_test_local, batch_size, comm, valid_size = dataset_test[0].shape[0])
 
         avg_loss = total_loss / dataset_train[0].shape[0]
         epoch_times[epoch] = time.time() - epoch_time
@@ -142,31 +135,24 @@ def train_model(exp,
         valid_losses[epoch] = avg_val_loss
         valid_perc_losses[epoch] = total_loss_perc
 
-        if rank == 0 and (epoch+1)%print_every == 0:
-            print(f"Epoch {epoch+1+n_past_epoch}/{epochs+n_past_epoch}, Training Losses: [{avg_loss:.2f}] , Validation Losses: [{avg_val_loss:.2f}, {total_loss_perc:.2f}%], Epoch time: {time.time() - epoch_time:.2f}s")
-        
-        sys.stdout.flush() 
+        if rank == 0 and (epoch+1)%100 == 0:
 
-        if (epoch+1) % 100 == 0 and rank == 0:
-            
-            plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
-            save_params(model_name, model, checkpointer)
+            print(f"Epoch {epoch+1+n_past_epoch}/{epochs+n_past_epoch}, Training Losses: [{avg_loss:.2f}] , Validation Losses: [{avg_val_loss:.2f}, {total_loss_perc:.2f}%], Epoch time: {time.time() - epoch_time:.2f}s")
+            sys.stdout.flush() 
+
+        if (epoch+1) % 500 == 0 and rank == 0:
+            plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
+            save_params(exp_name, model_name, model, checkpointer)
 
 
     if rank == 0:
         
-        plot_update_learning_curves(model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
+        plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
     
-        save_params(model_name, model, checkpointer)
+        save_params(exp_name, model_name, model, checkpointer)
 
-        exp['mse_train']= avg_loss.item()
-        exp['mse_test'] = avg_val_loss.item()
-        exp['perc_error'] = total_loss_perc.item()
-
-        final_validation(exp, model, model_name, dataset_valid)
-
+        return avg_loss.item(), avg_val_loss.item(), total_loss_perc.item()
        
-
         
     
 
