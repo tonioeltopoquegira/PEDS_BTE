@@ -1,4 +1,7 @@
 import os
+import sys
+
+from models.ensembles import ensemble
 
 
 # File Sys Management
@@ -9,3 +12,4 @@ def create_folders(experiment_name, model_name):
     os.makedirs(f"experiments/{experiment_name}/curves", exist_ok=True)
     os.makedirs(f"experiments/{experiment_name}/results", exist_ok=True)
     os.makedirs(f"experiments/{experiment_name}/optimization", exist_ok=True)
+

@@ -6,12 +6,17 @@ import os
 import json
 
 from models.peds import PEDS
+from models.ensembles import ensemble
 
 def final_validation(exp_name, model, model_name, dataset, mse_train, mse_test, perc_error):
     pores, kappa = dataset
     pores = pores.reshape((pores.shape[0], 25))
     if isinstance(model, PEDS):
         kappa_pred, _ = model(pores)
+    elif isinstance(model, ensemble):
+
+        kappa_pred, kappa_var = model(pores)
+
     else:
         kappa_pred = model(pores).squeeze(-1)
     error = np.abs(kappa_pred - kappa) / np.abs(kappa_pred)

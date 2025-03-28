@@ -1,12 +1,13 @@
 m1 = {
-    "model_name": "code_check",
-    "model": "PEDS",
+    "model_name": "ensemble_check",
+    "model": "ENSEMBLE",
     "resolution": 5,
     "learn_residual": False,
     "hidden_sizes": [32, 32],
     "activation": "mixed", 
     "solver": "gauss",
     "initialization": "he",
+    "n_models": 2
 }
 
 m2 = {

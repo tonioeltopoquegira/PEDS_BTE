@@ -1,4 +1,5 @@
 import os
+import sys
 import jax.numpy as jnp
 import jax
 import numpy as np
@@ -12,7 +13,8 @@ import json
 
 from mpi4py import MPI
 from solvers.low_fidelity_solvers.base_conductivity_grid_converter import conductivity_original_wrapper
-
+from models.ensembles import ensemble
+from modules.params_utils import save_params
 
 cmap = plt.cm.viridis
 
@@ -379,4 +381,25 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
             valid_perc_losses=valid_perc_losses,
             allow_pickle=True
         )
+
+
+def log_training_progress(model, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times):
+    if (epoch + 1) % 10 == 0:  # Always true, but keeps the structure flexible
+        epoch_str = f"Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch}, Training Loss: {avg_loss:.2f}, Validation Loss: {avg_val_loss:.2f}, {total_loss_perc:.2f}%, Time: {epoch_times[epoch]:.2f}s"
+        
+        if not isinstance(model, ensemble) and rank == 0:
+            print(type(model))
+            print(epoch_str)
+        elif isinstance(model, ensemble):
+            if rank == 0:
+                print(f"M1: {epoch_str}")
+            elif rank == 1:
+                print(f"M2: {epoch_str}")
+        
+        sys.stdout.flush()
+
+def curves_params(exp_name, model_name, model, checkpointer, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min):
+    plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
+    save_params(exp_name, model_name, model, checkpointer)
+
 

@@ -35,10 +35,11 @@ model = select_model(
     activation=model_config["activation"],
     solver=model_config["solver"],
     initialization=model_config['initialization'],
+    n_models = model_config['n_models']
 )
 
 # Params initializing or restoring
-model, checkpointer = initialize_or_restore_params(model, model_config["model_name"], base_dir= exp_config['exp_name'], rank=rank) # check or do it deeper
+model, checkpointer = initialize_or_restore_params(model, model_config["model_name"], base_dir= "experiments/" + exp_config['exp_name'] + "/weights", rank=rank) # check or do it deeper
 
 # Ingest data
 dataset_train, dataset_test, dataset_valid_small, kappas_design_valid = data_ingestion(

@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 import optax
 from models.peds import PEDS
+from models.ensembles import ensemble
 
 def gradient_opt(model, target, seed, neigh=True, batch_size=10, steps=100, lr=0.1):
 
@@ -10,8 +11,9 @@ def gradient_opt(model, target, seed, neigh=True, batch_size=10, steps=100, lr=0
             noise = jax.random.normal(jax.random.PRNGKey(0), params.shape) * 0.05
             perturbed_params = jnp.clip(params + noise, 0, 1)  
 
-            if isinstance(model, PEDS):
+            if isinstance(model, PEDS) or isinstance(model, ensemble):
                 k, _ = model(perturbed_params)
+
             else:
                 k = model(perturbed_params)
         
@@ -44,7 +46,7 @@ def gradient_opt(model, target, seed, neigh=True, batch_size=10, steps=100, lr=0
     # Binarization step
     binary_params = (params > 0.5).astype(jnp.float32)
 
-    if isinstance(model, PEDS):
+    if isinstance(model, PEDS) or isinstance(model, ensemble):
             k, _ = model(params)  # Model output
             k_binarized, _ = model(binary_params)
     else:

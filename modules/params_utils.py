@@ -7,6 +7,8 @@ import shutil
 import jax
 import jax.numpy as jnp
 
+from models.ensembles import ensemble
+
 def get_shapes(params):
     return jax.tree_util.tree_map(lambda x: x.shape if isinstance(x, jnp.ndarray) else None, params)
 
@@ -21,7 +23,7 @@ def filter_dropout(state):
     return state
 
 # Function for initializing or restoring model parameters
-def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"):
+def initialize_or_restore_params(generator, model_name, rank, base_dir):
     """
     Initialize or restore model parameters based on the existence of a checkpoint.
 
@@ -37,10 +39,10 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
         model: nnx.Model
             The initialized or restored model.
     """
-
+    if isinstance(generator, ensemble):
+        return initialize_or_restore_ensemble(generator, model_name, rank, base_dir)
 
     # Define paths
-    base_dir = "experiments/" + base_dir + "/weights"
     ckpt_dir = Path(base_dir) / model_name
     
     # Ensure checkpoint directory exists
@@ -89,6 +91,11 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir="weights"
 
 def save_params(exp_name, model_name, generator, checkpointer, epoch=None):
 
+    if isinstance(generator, ensemble):
+        # Save ensemble parameters
+        save_params_ensemble(exp_name, model_name, generator, checkpointer, epoch)
+        return
+
     _, state = nnx.split(generator)
     
     state = filter_dropout(state) # check if this one works
@@ -110,4 +117,23 @@ def save_params(exp_name, model_name, generator, checkpointer, epoch=None):
     checkpointer.save(new_checkpoint_dir, state)
 
    
+def initialize_or_restore_ensemble(ensemble, model_name, rank, base_dir):
+    
+    n_model = ensemble.n_models
+    checkpointers = []
+
+    for i in range(n_model):
+        model_name_i = f"model_{i}"
+        ensemble.models[i], checkpointer = initialize_or_restore_params(ensemble.models[i], model_name_i, rank, base_dir=base_dir+"/"+ model_name)
+        checkpointers.append(checkpointer)
+
+    return ensemble, checkpointers
+
+
+def save_params_ensemble(exp_name, model_name, ensemble, checkpointers, epoch=None):
+    base_dir = os.path.abspath(f'experiments/{exp_name}/weights/{model_name}')
+    
+    for i in range(ensemble.n_models):
+        model_name_i = f"model_{i}"
+        save_params(exp_name, model_name_i, ensemble.models[i], checkpointers[i], epoch)
     
