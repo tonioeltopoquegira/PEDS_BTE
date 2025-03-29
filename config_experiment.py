@@ -14,7 +14,7 @@ e1 = {
     "stratified": "all",
 
     # Training
-    "epochs": 1,
+    "epochs": 200,
     "batch_size": 200,
     "learn_rate_max": 5e-3,
     "learn_rate_min": 5e-4,

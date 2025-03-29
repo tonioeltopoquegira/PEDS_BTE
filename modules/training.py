@@ -8,13 +8,13 @@ from mpi4py import MPI
 import jax.numpy as jnp
 
 from modules.training_utils import (
-    data_loader, print_generated, 
+    data_loader,
     choose_schedule, accumulate_gradients,distribute_dataset, 
     mpi_allreduce_gradients, update_curves, log_training_progress,
     curves_params
 )   
 
-from models.peds import PEDS
+from models.model_utils import predict
 from models.ensembles import ensemble
 
 def train_model(
@@ -29,14 +29,17 @@ def train_model(
     rank = comm.Get_rank()
     size = comm.Get_size()
 
+    n_models = 1
+    model_real = model
+
     n_past_epoch = update_curves(model_name)
     lr_schedule = choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs, exp_name, n_past_epoch)
 
     if isinstance(model, ensemble):
-            num_models = model.n_models
-            ranks_per_model = size // num_models
+           
+            n_models = model.n_models
+            ranks_per_model = size // n_models
             model_id = rank // ranks_per_model
-            model_real = model
             sub_comm = comm.Split(color=model_id, key=rank)
             model = model.models[model_id]
             checkpointer = checkpointer[model_id]
@@ -49,15 +52,9 @@ def train_model(
         pores, kappas = batch_local
 
         def loss_fn(model):
-            if isinstance(model, PEDS):
-                kappa_pred, conductivity_res = model(pores, True)
-                if (epoch + 1 + n_past_epoch) in [1, 2, 4, 7, 11, 17, 26, 39, 58, 86, 130, 195, 293, 440, 660, 999] and batch_n == 0 and rank == 0:
-                    print_generated(model, pores, conductivity_res, epoch + 1 + n_past_epoch, model_name, exp_name, kappa_pred, kappas)
-            elif isinstance(model, ensemble):
-                kappa_pred, _ = model(pores, True)
-            else:
-                pores_reshaped = jnp.reshape(pores, (pores.shape[0], 25))
-                kappa_pred = jnp.squeeze(model(pores_reshaped, True), -1)
+            
+            kappa_pred, kappa_var = predict(model, pores, training=True, epoch=epoch, n_past_epoch=n_past_epoch, model_name=model_name, exp_name=exp_name, kappas=kappas, batch_n = batch_n, rank = rank)
+            
             residuals = kappa_pred - kappas
             return jnp.sum(residuals**2)
 
@@ -67,7 +64,7 @@ def train_model(
         total_val_loss, total_error_perc = 0.0, 0.0
 
         for val_pores, val_kappas in data_loader(*dataset, batch_size=batch_size):
-            kappa_val = model(val_pores, True)[0] if isinstance(model, (PEDS, ensemble)) else jnp.squeeze(model(jnp.reshape(val_pores, (val_pores.shape[0], 25))), -1)
+            kappa_val, kappa_var = predict(model, val_pores)
             local_res = (kappa_val - val_kappas)**2
             local_error = jnp.abs(kappa_val - val_kappas) * 100.0 / jnp.abs(val_kappas)
             total_val_loss += comm.allreduce(jnp.sum(local_res), op=MPI.SUM)
@@ -95,18 +92,17 @@ def train_model(
         optimizer.update(grads)
 
         # Aggregate training loss across models
-        avg_loss = total_loss / dataset_train[0].shape[0]
-        avg_loss = comm.allreduce(avg_loss, op=MPI.SUM) / model_real.n_models  # Ensure global mean
+        avg_loss = comm.allreduce(total_loss, op=MPI.SUM) / n_models  # Ensure global mean
 
-        # This shows that they are distinct models!
-        #avg_loss = total_loss / dataset_train[0].shape[0]
-       
+        avg_loss = avg_loss / dataset_train[0].shape[0]
 
+        print(dataset_train[0].shape[0])
+        
         avg_val_loss, total_loss_perc = valid_step(dataset_test_local, batch_size, sub_comm, dataset_test[0].shape[0]) # this values are just for one model... sum between all 5 models (wait for them!)
 
         # Wait for all models and sum their validation losses
-        avg_val_loss = comm.allreduce(avg_val_loss, op=MPI.SUM) / model_real.n_models
-        total_loss_perc = comm.allreduce(total_loss_perc, op=MPI.SUM) / model_real.n_models
+        avg_val_loss = comm.allreduce(avg_val_loss, op=MPI.SUM) / n_models
+        total_loss_perc = comm.allreduce(total_loss_perc, op=MPI.SUM) / n_models
 
 
         

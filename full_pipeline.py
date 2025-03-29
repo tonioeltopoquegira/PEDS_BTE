@@ -3,11 +3,11 @@ from mpi4py import MPI
 from flax import nnx
 
 from modules.data_ingestion import data_ingestion
-from modules.choose_model import select_model
+from models.model_utils import select_model
 from modules.params_utils import initialize_or_restore_params
 from modules.training import train_model
 from utils import create_folders
-from modules.run_optimization import optimize
+from optimization.run_optimization import optimize
 from modules.validation import final_validation
 
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"

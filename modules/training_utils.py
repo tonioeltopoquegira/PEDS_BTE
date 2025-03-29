@@ -12,7 +12,6 @@ import seaborn as sns
 import json
 
 from mpi4py import MPI
-from solvers.low_fidelity_solvers.base_conductivity_grid_converter import conductivity_original_wrapper
 from models.ensembles import ensemble
 from modules.params_utils import save_params
 
@@ -27,84 +26,6 @@ def data_loader(*arrays, batch_size):
         batch_indices = indices[start_idx:start_idx + batch_size]
         yield tuple(array[batch_indices] for array in arrays)
 
-def print_generated(model, pores, conductivity_res, epoch, model_name, exp_name, kappa_predicted, kappa_target):
-    # Ensure the arrays are NumPy arrays and detach from the computation graph
-    conductivities_numpy = np.array(conductivity_original_wrapper(pores[:3], conductivity_res.shape[-1]))
-    conductivity_res_numpy = [np.asarray(jax.lax.stop_gradient(r)) for r in conductivity_res[:3]]
-    kappa_predicted_n = [np.asarray(jax.lax.stop_gradient(r)) for r in kappa_predicted[:3]]
-
-    if model.learn_residual:
-
-        # Create the figure and axes for 3x3 subplots
-        fig, axes = plt.subplots(3, 3, figsize=(18, 15), gridspec_kw={"width_ratios": [1, 1, 1]})
-
-        # Define the range for the color map to ensure all plots use the same scale
-        vmin = min(np.min(c) for c in conductivities_numpy + conductivity_res_numpy)
-        vmax = max(np.max(c) for c in conductivities_numpy + conductivity_res_numpy)
-
-        # Plot the conductivities and residuals in the subplots
-        for i in range(3):
-            # Base conductivity
-            axes[i, 0].imshow(conductivities_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
-            if i == 0:
-                axes[i, 0].set_title('Base Conductivity')
-
-            # Generated conductivity
-            axes[i, 1].imshow(conductivity_res_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
-            if i == 0:
-                axes[i, 1].set_title('Generated Conductivity')
-
-            # Final conductivity (sum of base and residual)
-            im3 = axes[i, 2].imshow(conductivity_res_numpy[i] + conductivities_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
-            if i == 0:
-                axes[i, 2].set_title('Final Conductivity')
-
-            # Add text annotations for predicted vs. target values
-            fig.text(
-                0.90, 0.80 - i * 0.20,  # Adjust position based on row
-                f"Predicted: {kappa_predicted_n[i]:.2f}\nTarget: {kappa_target[i]:.2f}",
-                fontsize=10, color='black', ha='left', va='center'
-            )
-
-        # Create a single colorbar for all subplots (linked to final conductivity)
-        fig.colorbar(im3, ax=axes[:, :3], orientation='horizontal', label='Conductivity')
-
-    else:
-       # Create the figure and axes for 3x3 subplots
-        fig, axes = plt.subplots(3, 2, figsize=(12, 9), gridspec_kw={"width_ratios": [1, 1]})
-
-        # Define the range for the color map to ensure all plots use the same scale
-        vmin = min(np.min(c) for c in conductivity_res_numpy)
-        vmax = max(np.max(c) for c in conductivity_res_numpy)
-
-        # Plot the conductivities and residuals in the subplots
-        for i in range(3):
-            # Base conductivity
-            """axes[i, 0].imshow(conductivities_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
-            if i == 0:
-                axes[i, 0].set_title('Base Conductivity')
-            if i == 1:
-                axes[i, 0].set_ylabel('y direction')"""
-
-            # Generated conductivity
-            im2 = axes[i, 1].imshow(conductivity_res_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
-            if i == 0:
-                axes[i, 1].set_title('Generated / Final Conductivity')
-
-            # Add text annotations for predicted vs. target values
-            fig.text(
-                0.90, 0.80 - i * 0.20,  # Adjust position based on row
-                f"Predicted: {kappa_predicted_n[i]:.2f}\nTarget: {kappa_target[i]:.2f}",
-                fontsize=10, color='black', ha='left', va='center'
-            )
-
-            # Create a single colorbar for all subplots (linked to final conductivity)
-        fig.colorbar(im2, ax=axes[:3, :], orientation='vertical', label='Conductivity')
-
-    
-    # Save the figure
-    plt.savefig(f"experiments/{exp_name}/figures/peds_evolution/{model_name}/conductivities_epoch_{epoch}.png")
-    plt.close()
 
 
 def clip_gradients(grads, clip_value=1.0):
@@ -384,11 +305,10 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
 
 
 def log_training_progress(model, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times):
-    if (epoch + 1) % 10 == 0:  # Always true, but keeps the structure flexible
+    if (epoch + 1) % 1 == 0:  # Always true, but keeps the structure flexible
         epoch_str = f"Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch}, Training Loss: {avg_loss:.2f}, Validation Loss: {avg_val_loss:.2f}, {total_loss_perc:.2f}%, Time: {epoch_times[epoch]:.2f}s"
         
         if not isinstance(model, ensemble) and rank == 0:
-            print(type(model))
             print(epoch_str)
         elif isinstance(model, ensemble):
             if rank == 0:
