@@ -305,7 +305,7 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
 
 
 def log_training_progress(model, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times):
-    if (epoch + 1) % 1 == 0:  # Always true, but keeps the structure flexible
+    if (epoch + 1) % 25 == 0:  # Always true, but keeps the structure flexible
         epoch_str = f"Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch}, Training Loss: {avg_loss:.2f}, Validation Loss: {avg_val_loss:.2f}, {total_loss_perc:.2f}%, Time: {epoch_times[epoch]:.2f}s"
         
         if not isinstance(model, ensemble) and rank == 0:

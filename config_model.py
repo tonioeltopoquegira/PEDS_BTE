@@ -1,6 +1,6 @@
 m1 = {
-    "model_name": "ensemble_check",
-    "model": "MLP",
+    "model_name": "peds",
+    "model": "PEDS",
     "resolution": 5,
     "learn_residual": False,
     "hidden_sizes": [32, 32],

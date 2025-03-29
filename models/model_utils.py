@@ -50,6 +50,7 @@ def predict(model, pores, training=False, **kwargs):
     kappa_var = None
 
     if isinstance(model, mlp):
+       
         pores_reshaped = jnp.reshape(pores, (pores.shape[0], 25))
         kappa_mean = jnp.squeeze(model(pores_reshaped, True), -1)
     
@@ -60,6 +61,7 @@ def predict(model, pores, training=False, **kwargs):
                 plot_peds(model, pores, conductivity_res = conductivity_generated, model_name=kwargs.get('model_name'), exp_name=kwargs.get('exp_name'), epoch=kwargs.get('epoch') + 1 + kwargs.get('n_past_epoch'), kappa_predicted=kappa_mean, kappa_target=kwargs.get('kappas'))
     
     if isinstance(model, ensemble):
+        
         kappa_mean, kappa_var = model(pores, training)
 
     return kappa_mean, kappa_var

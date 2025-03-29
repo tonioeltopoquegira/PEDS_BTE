@@ -7,14 +7,22 @@ e1 = {
     "valid": True, # change the validation to try different validations
     "optimization": True,
 
+
     # Data
     "filename_data": "high_fidelity_2_20000.npz", # do we need this?
-    "train_size": 200, # change to train, test, validation
-    "test_size": 200,
+    "train_size": 1000, # change to train, test, validation
+    "test_size": 100,
     "stratified": "all",
 
+    # Active Learning
+    "al": False,
+    "N": 300,
+    "M": 800,
+    "K": 100,
+    "T": 50,
+     
     # Training
-    "epochs": 200,
+    "epochs": 1000,
     "batch_size": 200,
     "learn_rate_max": 5e-3,
     "learn_rate_min": 5e-4,

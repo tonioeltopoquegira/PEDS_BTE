@@ -9,6 +9,7 @@ from modules.training import train_model
 from utils import create_folders
 from optimization.run_optimization import optimize
 from modules.validation import final_validation
+from uqmethods.al import DatasetAL
 
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"
 
@@ -42,15 +43,24 @@ model = select_model(
 model, checkpointer = initialize_or_restore_params(model, model_config["model_name"], base_dir= "experiments/" + exp_config['exp_name'] + "/weights", rank=rank) # check or do it deeper
 
 # Ingest data
-dataset_train, dataset_test, dataset_valid_small, kappas_design_valid = data_ingestion(
-    rank=rank,
-    exp_name=exp_config['exp_name'],
-    filename=exp_config["filename_data"], 
-    train_size=exp_config["train_size"], 
-    test_size=exp_config['test_size'],
-    stratified=exp_config['stratified'],
-    key=rngs
-)
+if exp_config['al']:
+
+    dataset_al = DatasetAL(exp_config['filename_data'], exp_config['M'], exp_config['N'], exp_config['K'], exp_config['T'], exp_config['seed'])
+    dataset_train = dataset_al.initialize()
+    dataset_test = dataset_al.get_test_set()
+
+else:
+    dataset_train, dataset_test, dataset_valid_small, kappas_design_valid = data_ingestion(
+        rank=rank,
+        exp_name=exp_config['exp_name'],
+        filename=exp_config["filename_data"], 
+        train_size=exp_config["train_size"], 
+        test_size=exp_config['test_size'],
+        stratified=exp_config['stratified'],
+        key=rngs
+    )
+
+    dataset_al = None
 
 if exp_config['training']:
     if rank == 0:
@@ -58,6 +68,7 @@ if exp_config['training']:
     mse_train, mse_test, perc_error_test = train_model(
         exp_name=exp_config['exp_name'], 
         model_name=model_config["model_name"],
+        dataset_al= dataset_al,
         dataset_train=dataset_train,
         dataset_test=dataset_test,
         model=model,
@@ -69,13 +80,13 @@ if exp_config['training']:
         checkpointer=checkpointer
         )
 
-if exp_config['valid'] and rank == 0:
+if exp_config['valid'] and rank == 0 and not exp_config['al']:
     print("Validation...")
     final_validation(exp_config["exp_name"], model, model_config['model_name'], dataset_valid_small, mse_train, mse_test, perc_error_test)
 
 if rank == 0 and exp_config['optimization']:
     
-    if exp_config['kappas'] is None:
+    if exp_config['kappas'] is None and not exp_config['al']:
         exp_config['kappas'] = kappas_design_valid.tolist()
     
     kappas_valid = exp_config['kappas']

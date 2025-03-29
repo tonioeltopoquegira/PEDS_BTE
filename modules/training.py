@@ -19,7 +19,7 @@ from models.ensembles import ensemble
 
 def train_model(
     exp_name, model_name, 
-    dataset_train, dataset_test, 
+    dataset_al, dataset_train, dataset_test, 
     model,
     learn_rate_max, learn_rate_min, schedule, epochs,
     batch_size, checkpointer
@@ -81,6 +81,12 @@ def train_model(
     dataset_train_local, dataset_test_local = distribute_dataset(dataset_train, rank, size), distribute_dataset(dataset_test, rank, size)
 
     for epoch in range(epochs):
+
+        if dataset_al is not None and dataset_al.checkupdate(epoch) and rank==0:
+            dataset_train = dataset_al.sample(model_real)
+            dataset_train_local = distribute_dataset(dataset_train, rank, size)
+            sys.stdout.flush()
+
         epoch_time = time.time()
         grads, total_loss = None, 0.0
 
@@ -92,25 +98,24 @@ def train_model(
         optimizer.update(grads)
 
         # Aggregate training loss across models
-        avg_loss = comm.allreduce(total_loss, op=MPI.SUM) / n_models  # Ensure global mean
+        avg_loss = total_loss / dataset_train[0].shape[0]
 
-        avg_loss = avg_loss / dataset_train[0].shape[0]
-
-        print(dataset_train[0].shape[0])
-        
+        if isinstance(model_real, ensemble):
+            avg_loss = comm.allreduce(avg_loss, op=MPI.SUM) #/ n_models  # Ensure global mean
+    
         avg_val_loss, total_loss_perc = valid_step(dataset_test_local, batch_size, sub_comm, dataset_test[0].shape[0]) # this values are just for one model... sum between all 5 models (wait for them!)
 
         # Wait for all models and sum their validation losses
-        avg_val_loss = comm.allreduce(avg_val_loss, op=MPI.SUM) / n_models
-        total_loss_perc = comm.allreduce(total_loss_perc, op=MPI.SUM) / n_models
-
+        if isinstance(model_real, ensemble):
+            avg_val_loss = comm.allreduce(avg_val_loss, op=MPI.SUM) #/ n_models
+            total_loss_perc = comm.allreduce(total_loss_perc, op=MPI.SUM) #/ n_models
 
         
         epoch_times[epoch], epoch_losses[epoch], valid_losses[epoch], valid_perc_losses[epoch] = time.time() - epoch_time, avg_loss, avg_val_loss, total_loss_perc
 
         log_training_progress(model_real, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times)
 
-        if epoch % 25 == 0:
+        if epoch % 50 == 0:
             jax.clear_caches()
 
         if (epoch + 1) % 500 == 0 and rank == 0:
@@ -118,7 +123,7 @@ def train_model(
 
     if isinstance(model_real, ensemble):
         if rank == 0:
-            curves_params(exp_name, model_name, model, checkpointer, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
+            curves_params(exp_name, model_name, model_real, checkpointer, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
         return avg_loss.item(), avg_val_loss.item(), total_loss_perc.item()
 
           
@@ -127,6 +132,12 @@ def train_model(
         curves_params(exp_name, model_name, model, checkpointer, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
         return avg_loss.item(), avg_val_loss.item(), total_loss_perc.item()
 
+
+
+
+# ERROR DEPENDS ON N of TRAINING THAT I USE... For ensemble each models is assigned 
+# some processors and the cumulative is divided by n_models. For the other we shoud just parallelize the for loop! 
+# Dividing by the number of processors also for non ensembles is a solve but underlying problem in parallelization?
 
 
 
