@@ -59,21 +59,35 @@ if __name__ == "__main__":
 
     from models.peds import PEDS
     from modules.params_utils import initialize_or_restore_params
+    from models.model_utils import select_model
     from flax import nnx
 
 
-    kappas = [0.0, 160.0]
+    kappas = [12.0]
 
-    model_name = "PEDS_gauss"
-    # Initialize the model
-    model = PEDS(resolution = 20, learn_residual= False, hidden_sizes= [32, 64, 128], activation="relu", solver="gauss", final_init=False, initialization="he", init_min=1e-11) # parameters: 60k
-    model, checkpointer = initialize_or_restore_params(model, model_name, rank=0)
+    rngs = nnx.Rngs(42)
 
+    
+    from config_model import m1 as model_config 
+    # from config_model import m2 as model_config # Change this to m2 for ENSEMBLE model (UQ)
 
+    model = select_model(
+        rngs=rngs, 
+        model_type=model_config["model"], 
+        resolution=model_config["resolution"], 
+        learn_residual=model_config["learn_residual"], 
+        hidden_sizes=model_config["hidden_sizes"], 
+        activation=model_config["activation"],
+        solver=model_config["solver"],
+        initialization=model_config['initialization'],
+        n_models = model_config['n_models']
+    )
+
+    model, checkpointer = initialize_or_restore_params(model,model_config["model_name"], base_dir= "experiments/opt_coding/weights", rank=0) # check or do it deeper
 
     seed = nnx.Rngs(42)
 
-    optimize(model_name, model, "grad-adam", kappas, seed)
+    optimize(model_config["model_name"], model, "grad-adam", kappas, seed)
 
 
 

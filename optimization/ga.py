@@ -5,6 +5,7 @@ from models.peds import PEDS
 from flax import nnx
 import jax
 from modules.params_utils import initialize_or_restore_params
+from models.model_utils import predict
 
 import random
 import numpy as np
@@ -68,11 +69,8 @@ def genetic_algorithm(model, target, seed, n=25, pop_size=100, generations=40, c
         batch = np.array(population)  # Shape: (pop_size, n)
         if isinstance(model, PEDS):
             batch = batch.reshape((batch.shape[0], 5, 5))  # Shape: (batch_size, 1, 5, 5)
-        if isinstance(model, PEDS):
-            kappas, _ = model(batch)  # Shape: (batch_size, kappas)
-        
-        else:
-            kappas = model(batch)
+            
+        kappas = predict(model, batch) 
 
        
         # Compute fitness as the absolute difference from the target

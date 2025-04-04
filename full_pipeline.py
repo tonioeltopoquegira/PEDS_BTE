@@ -13,8 +13,8 @@ from uqmethods.al import DatasetAL
 
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"
 
-from config_experiment import e1 as exp_config
-from config_model import m1 as model_config
+from config_experiment import e2 as exp_config
+from config_model import m2 as model_config
 
 
 # Initialize MPI

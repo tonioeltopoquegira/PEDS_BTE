@@ -99,16 +99,15 @@ def train_model(
 
         # Aggregate training loss across models
         avg_loss = total_loss / dataset_train[0].shape[0]
-
-        if isinstance(model_real, ensemble):
-            avg_loss = comm.allreduce(avg_loss, op=MPI.SUM) #/ n_models  # Ensure global mean
-    
+            
         avg_val_loss, total_loss_perc = valid_step(dataset_test_local, batch_size, sub_comm, dataset_test[0].shape[0]) # this values are just for one model... sum between all 5 models (wait for them!)
 
         # Wait for all models and sum their validation losses
         if isinstance(model_real, ensemble):
-            avg_val_loss = comm.allreduce(avg_val_loss, op=MPI.SUM) #/ n_models
-            total_loss_perc = comm.allreduce(total_loss_perc, op=MPI.SUM) #/ n_models
+            log_training_progress(model, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times)
+            avg_loss = comm.allreduce(avg_loss, op=MPI.SUM) / ranks_per_model # DIVIDE BY N PROCESSOR per MODEL
+            avg_val_loss = comm.allreduce(avg_val_loss, op=MPI.SUM) / ranks_per_model 
+            total_loss_perc = comm.allreduce(total_loss_perc, op=MPI.SUM) / ranks_per_model 
 
         
         epoch_times[epoch], epoch_losses[epoch], valid_losses[epoch], valid_perc_losses[epoch] = time.time() - epoch_time, avg_loss, avg_val_loss, total_loss_perc
