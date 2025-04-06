@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import numpy as np
 import jax
 import matplotlib.pyplot as plt
+from flax import nnx
 
 from models.peds import PEDS
 from models.mlp import mlp
@@ -9,7 +10,7 @@ from models.ensembles import ensemble
 
 from solvers.low_fidelity_solvers.base_conductivity_grid_converter import conductivity_original_wrapper
 
-def select_model(rngs, model_type, **kwargs):
+def select_model(seed, model_type, **kwargs):
 
     if model_type == "PEDS":
         return PEDS(
@@ -19,9 +20,11 @@ def select_model(rngs, model_type, **kwargs):
             activation=kwargs["activation"], 
             solver=kwargs["solver"],
             initialization=kwargs['initialization'],
+            seed=seed
         )
     elif model_type == "MLP":
-        #
+
+        rngs = nnx.Rngs(seed=seed)
         return mlp(
             layer_sizes=[25] + kwargs["hidden_sizes"] + [1],  # Assuming this maps correctly
             activation=kwargs["activation"],
@@ -36,12 +39,12 @@ def select_model(rngs, model_type, **kwargs):
             hidden_sizes=kwargs["hidden_sizes"], 
             activation=kwargs["activation"], 
             solver=kwargs["solver"],
-            initialization=kwargs['initialization']) for _ in range(kwargs["n_models"])]
+            initialization=kwargs['initialization'], seed=seed+_) for _ in range(kwargs["n_models"])]
 
 
         return ensemble(
             models = models,
-            n_models=kwargs["n_models"]  # Default to 2 if not specified
+            n_models=kwargs["n_models"],  # Default to 2 if not specified
         )
 
 def predict(model, pores, training=False, **kwargs):

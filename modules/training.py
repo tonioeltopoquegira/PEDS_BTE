@@ -1,7 +1,12 @@
 import time
 import sys
+import psutil
+import os
 import jax
+from flax import nnx
 import optax
+import hashlib
+from jax import tree_util
 import numpy as np
 from flax import nnx
 from mpi4py import MPI
@@ -11,18 +16,28 @@ from modules.training_utils import (
     data_loader,
     choose_schedule, accumulate_gradients,distribute_dataset, 
     mpi_allreduce_gradients, update_curves, log_training_progress,
-    curves_params
+    plot_update_learning_curves 
 )   
+
+from modules.params_utils import save_params
 
 from models.model_utils import predict
 from models.ensembles import ensemble
 
+def tree_norm(tree):
+    """Compute L2 norm of a gradient PyTree"""
+    leaves = tree_util.tree_leaves(tree)
+    return jnp.sqrt(sum([jnp.sum(jnp.square(x)) for x in leaves]))
+
+
+
 def train_model(
     exp_name, model_name, 
     dataset_al, dataset_train, dataset_test, 
-    model,
+    model_real,
     learn_rate_max, learn_rate_min, schedule, epochs,
-    batch_size, checkpointer
+    batch_size, checkpointer,
+    debug=False  # add a flag to toggle debug logging
 ):
     # Initialize MPI
     comm = MPI.COMM_WORLD
@@ -30,37 +45,62 @@ def train_model(
     size = comm.Get_size()
 
     n_models = 1
-    model_real = model
 
     n_past_epoch = update_curves(model_name)
     lr_schedule = choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs, exp_name, n_past_epoch)
 
-    if isinstance(model, ensemble):
-           
-            n_models = model.n_models
-            ranks_per_model = size // n_models
-            model_id = rank // ranks_per_model
-            sub_comm = comm.Split(color=model_id, key=rank)
-            model = model.models[model_id]
-            checkpointer = checkpointer[model_id]
-            optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
-    else:
-        optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
-        sub_comm = comm
+    if isinstance(model_real, ensemble):
+        n_models = model_real.n_models
+        ranks_per_model = size // n_models
+        model_id = rank // ranks_per_model
 
-    def train_step(batch_local, epoch, batch_n, rank):
+        # --- Sanity Check: Assert each model gets the expected number of ranks ---
+        assert size % n_models == 0, "Number of processes not divisible by number of models"
+        
+        sub_comm = comm.Split(color=model_id, key=rank)
+       
+        # Retrieve the model for this ensemble member
+        
+
+        model = model_real.models[model_id]
+        # Print the id of the model object to ensure they are different
+        checkpointers = checkpointer[model_id]
+        optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
+        local_rank = rank % ranks_per_model
+
+        # Distribute the dataset among only the cores assigned to this model.
+        dataset_train_local = distribute_dataset(dataset_train, local_rank, ranks_per_model)
+        dataset_test_local = distribute_dataset(dataset_test, local_rank, ranks_per_model)
+
+    else:
+        model = model_real
+        model_id = 0  # for logging consistency when single model
+        sub_comm = comm
+        optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
+        # For non-ensemble training, distribute across all ranks.
+        dataset_train_local = distribute_dataset(dataset_train, rank, size)
+        dataset_test_local = distribute_dataset(dataset_test, rank, size)
+
+
+    #print(dataset_test_local[0].shape)
+        
+    def loss_and_grads(batch_local, epoch, batch_n, rank):
         pores, kappas = batch_local
 
         def loss_fn(model):
-            
-            kappa_pred, kappa_var = predict(model, pores, training=True, epoch=epoch, n_past_epoch=n_past_epoch, model_name=model_name, exp_name=exp_name, kappas=kappas, batch_n = batch_n, rank = rank)
-            
+            kappa_pred, kappa_var = predict(
+                model, pores, training=True, epoch=epoch, 
+                n_past_epoch=n_past_epoch, model_name=model_name, 
+                exp_name=exp_name, kappas=kappas, batch_n=batch_n, rank=rank
+            )
             residuals = kappa_pred - kappas
             return jnp.sum(residuals**2)
 
-        return nnx.value_and_grad(loss_fn)(model)
+        loss, grads = nnx.value_and_grad(loss_fn)(model)
 
-    def valid_step(dataset, batch_size, comm, valid_size):
+        return loss, grads
+
+    def validate(dataset, batch_size, comm, valid_size):
         total_val_loss, total_error_perc = 0.0, 0.0
 
         for val_pores, val_kappas in data_loader(*dataset, batch_size=batch_size):
@@ -72,17 +112,19 @@ def train_model(
         
         return total_val_loss / valid_size, total_error_perc / valid_size
 
-
     if rank == 0:
         print(f"Past epochs: {n_past_epoch}")
         sys.stdout.flush()
-
-    epoch_losses, valid_losses, valid_perc_losses, epoch_times = np.zeros(epochs), np.zeros(epochs), np.zeros(epochs), np.zeros(epochs)
-    dataset_train_local, dataset_test_local = distribute_dataset(dataset_train, rank, size), distribute_dataset(dataset_test, rank, size)
+   
+    epoch_losses = np.zeros(epochs)
+    valid_losses = np.zeros(epochs)
+    valid_perc_losses = np.zeros(epochs)
+    epoch_times = np.zeros(epochs)
+    valid_variance = np.zeros(epochs)
 
     for epoch in range(epochs):
 
-        if dataset_al is not None and dataset_al.checkupdate(epoch) and rank==0:
+        if dataset_al is not None and dataset_al.checkupdate(epoch) and rank == 0:
             dataset_train = dataset_al.sample(model_real)
             dataset_train_local = distribute_dataset(dataset_train, rank, size)
             sys.stdout.flush()
@@ -90,55 +132,85 @@ def train_model(
         epoch_time = time.time()
         grads, total_loss = None, 0.0
 
-        for en, batch_local in enumerate(data_loader(*dataset_train_local, batch_size=batch_size)):
-            local_loss, local_grads = train_step(batch_local, epoch, en, rank)
-            total_loss += sub_comm.allreduce(local_loss, op=MPI.SUM)
-            grads = accumulate_gradients(grads, mpi_allreduce_gradients(local_grads, sub_comm))
+        for batch_n, batch_local in enumerate(data_loader(*dataset_train_local, batch_size=batch_size)):
 
+            local_loss, local_grads = loss_and_grads(batch_local, epoch, batch_n, rank)
+
+            # Reduce accross same-model cores
+            new_local_loss = sub_comm.allreduce(local_loss, op=MPI.SUM)
+            new_local_grads = mpi_allreduce_gradients(local_grads, sub_comm)
+
+            # Accumulate Loss and gradients
+            total_loss += new_local_loss
+            grads = accumulate_gradients(grads, new_local_grads)
+
+        # Optimizer step
         optimizer.update(grads)
 
-        # Aggregate training loss across models
+        # Aggregate training loss across samples
         avg_loss = total_loss / dataset_train[0].shape[0]
-            
-        avg_val_loss, total_loss_perc = valid_step(dataset_test_local, batch_size, sub_comm, dataset_test[0].shape[0]) # this values are just for one model... sum between all 5 models (wait for them!)
 
-        # Wait for all models and sum their validation losses
-        if isinstance(model_real, ensemble):
-            log_training_progress(model, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times)
-            avg_loss = comm.allreduce(avg_loss, op=MPI.SUM) / ranks_per_model # DIVIDE BY N PROCESSOR per MODEL
-            avg_val_loss = comm.allreduce(avg_val_loss, op=MPI.SUM) / ranks_per_model 
-            total_loss_perc = comm.allreduce(total_loss_perc, op=MPI.SUM) / ranks_per_model 
+        avg_val_loss, total_loss_perc = validate(dataset_test_local, batch_size, sub_comm, dataset_test[0].shape[0])
 
+        # Log the training progress for each epoch
+        if (rank % (size // n_models) == 0):
+            log_training_progress(model, model_id, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times)
         
-        epoch_times[epoch], epoch_losses[epoch], valid_losses[epoch], valid_perc_losses[epoch] = time.time() - epoch_time, avg_loss, avg_val_loss, total_loss_perc
+        if isinstance(model_real, ensemble):
+            avg_val_loss, total_loss_perc, avg_val_var = valid_ensemble(model_real, epoch, comm, dataset_test, model, rank)
+            valid_variance[epoch] = avg_val_var
+        
+        epoch_times[epoch] = time.time() - epoch_time
+        epoch_losses[epoch] = avg_loss
+        valid_losses[epoch] = avg_val_loss
+        valid_perc_losses[epoch] = total_loss_perc
 
-        log_training_progress(model_real, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times)
-
+            
         if epoch % 50 == 0:
             jax.clear_caches()
 
-        if (epoch + 1) % 500 == 0 and rank == 0:
-            curves_params(exp_name, model_name, model, checkpointer, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
-
-    if isinstance(model_real, ensemble):
-        if rank == 0:
-            curves_params(exp_name, model_name, model_real, checkpointer, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
-        return avg_loss.item(), avg_val_loss.item(), total_loss_perc.item()
-
-          
-    if rank == 0:
-
-        curves_params(exp_name, model_name, model, checkpointer, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
-        return avg_loss.item(), avg_val_loss.item(), total_loss_perc.item()
-
-
-
-
-# ERROR DEPENDS ON N of TRAINING THAT I USE... For ensemble each models is assigned 
-# some processors and the cumulative is divided by n_models. For the other we shoud just parallelize the for loop! 
-# Dividing by the number of processors also for non ensembles is a solve but underlying problem in parallelization?
-
-
-
-
     
+    # Final curves saving and return of final metrics.  
+    if (rank % (size // n_models) == 0):
+        plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, valid_variance, schedule, learn_rate_max, learn_rate_min)
+        if isinstance(model_real, ensemble):
+            model_name = model_name + f"/model_{rank}"
+            
+            save_params(exp_name, model_name, model, checkpointer[rank])
+            checkpointer[rank].wait_until_finished()  # <-- important!
+        else:
+            save_params(exp_name, model_name, model, checkpointer)
+            checkpointer.wait_until_finished()  # <-- important!
+
+        
+    return model_real, avg_loss.item(), avg_val_loss.item(), total_loss_perc.item()
+
+
+
+def valid_ensemble(model_real, epoch, comm, dataset_test, model, rank):
+    # Debug output: Check a few predictions
+    
+    comm.Barrier()  # Synchronize all ranks
+
+
+    # Now, proceed with the prediction on each rank
+    val_pores, val_kappas = dataset_test 
+    kappa_pred_local, kappa_var = predict(model, val_pores)
+
+    # Gather data from all ranks on rank 0
+    
+    kappa_pred_all = comm.allgather(kappa_pred_local)
+
+    kappa_pred_stacked = jnp.stack(kappa_pred_all)
+
+    kappa_pred_mean = jnp.mean(kappa_pred_stacked, axis=0)
+    kappa_pred_var = jnp.var(kappa_pred_stacked, axis=0)
+
+    ens_valid_err = jnp.mean((kappa_pred_mean - val_kappas)**2)
+    ens_valid_perc = jnp.mean(jnp.abs(kappa_pred_mean - val_kappas) * 100.0 / jnp.abs(val_kappas))
+    ens_valid_var = jnp.mean(kappa_pred_var)
+
+    if rank == 0 and epoch % 25 == 0:
+        print(f"Ensemble : Epoch {epoch} | ValLoss: {ens_valid_err:.2f}, {ens_valid_perc:.2f}% | True kappas: {val_kappas[:3]}, Predicted: {kappa_pred_mean[:3]}, Variances: {kappa_pred_var[:3]}")
+
+    return ens_valid_err, ens_valid_perc, ens_valid_var

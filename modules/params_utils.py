@@ -6,6 +6,7 @@ from datetime import datetime
 import shutil
 import jax
 import jax.numpy as jnp
+import jax.random as random
 
 from models.ensembles import ensemble
 
@@ -23,7 +24,7 @@ def filter_dropout(state):
     return state
 
 # Function for initializing or restoring model parameters
-def initialize_or_restore_params(generator, model_name, rank, base_dir):
+def initialize_or_restore_params(generator, model_name, rank, base_dir, seed=None):
     """
     Initialize or restore model parameters based on the existence of a checkpoint.
 
@@ -39,8 +40,12 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir):
         model: nnx.Model
             The initialized or restored model.
     """
+
     if isinstance(generator, ensemble):
-        return initialize_or_restore_ensemble(generator, model_name, rank, base_dir)
+        return initialize_or_restore_ensemble(generator, model_name, rank, base_dir, seed)
+   
+    if seed is not None:
+        key = random.PRNGKey(seed)
 
     # Define paths
     ckpt_dir = Path(base_dir) / model_name
@@ -53,6 +58,8 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir):
 
     # Generate the abstract model
     graphdef, abstract_state = nnx.split(generator)
+
+    #print(f"Seed: {seed} States: {abstract_state['generator']['layers'][1]['kernel']}")
 
     #abstract_state = filter_dropout(abstract_state)
 
@@ -100,7 +107,6 @@ def save_params(exp_name, model_name, generator, checkpointer, epoch=None):
     
     state = filter_dropout(state) # check if this one works
   
-    #nnx.display(state)
     base_dir = os.path.abspath(f'experiments/{exp_name}/weights/{model_name}')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M')  # e.g., "20241213_123456"
     if epoch is None:
@@ -110,30 +116,33 @@ def save_params(exp_name, model_name, generator, checkpointer, epoch=None):
     
     new_checkpoint_dir = os.path.join(base_dir, timestamp)
 
-    if os.path.exists(new_checkpoint_dir):
-        shutil.rmtree(new_checkpoint_dir)  # Remove the directory and its contents
+    """if os.path.exists(new_checkpoint_dir):
+        shutil.rmtree(new_checkpoint_dir) """ # Remove the directory and its contents
 
     #os.makedirs(new_checkpoint_dir, exist_ok=False)  # Ensure the directory does not already exist
     checkpointer.save(new_checkpoint_dir, state)
 
    
-def initialize_or_restore_ensemble(ensemble, model_name, rank, base_dir):
-    
+def initialize_or_restore_ensemble(ensemble, model_name, rank, base_dir, seed):
     n_model = ensemble.n_models
     checkpointers = []
 
     for i in range(n_model):
-        model_name_i = f"model_{i}"
-        ensemble.models[i], checkpointer = initialize_or_restore_params(ensemble.models[i], model_name_i, rank, base_dir=base_dir+"/"+ model_name)
+        model_name_i = f"{model_name}/model_{i}"  # only model_name changes
+        ensemble.models[i], checkpointer = initialize_or_restore_params(
+            ensemble.models[i],
+            model_name_i,
+            rank,
+            base_dir=base_dir,  # base_dir stays same!
+            seed=seed + i
+        )
         checkpointers.append(checkpointer)
 
     return ensemble, checkpointers
 
 
+
 def save_params_ensemble(exp_name, model_name, ensemble, checkpointers, epoch=None):
-    base_dir = os.path.abspath(f'experiments/{exp_name}/weights/{model_name}')
-    
     for i in range(ensemble.n_models):
-        model_name_i = f"model_{i}"
+        model_name_i = f"{model_name}/model_{i}"  # only name changes
         save_params(exp_name, model_name_i, ensemble.models[i], checkpointers[i], epoch)
-    

@@ -5,6 +5,9 @@ import os
 from optimization.ga import genetic_algorithm
 from optimization.gradient import gradient_opt
 
+#from ga import genetic_algorithm
+#from gradient import gradient_opt
+
 
 
 def optimize(exp_name, model_name, model,opt, kappas, seed):

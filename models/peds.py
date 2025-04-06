@@ -1,5 +1,6 @@
 from flax import nnx
 import jax.numpy as jnp
+import jax
 from models.mlp import mlp
 from solvers.low_fidelity_solvers.lowfidsolver_class import lowfid
 from solvers.low_fidelity_solvers.base_conductivity_grid_converter import conductivity_original_wrapper
@@ -10,7 +11,7 @@ class PEDS(nnx.Module):
 
     def __init__(self, resolution:int, 
                 learn_residual: bool, hidden_sizes:list, activation:str,
-                solver:str, initialization:str):
+                solver:str, initialization:str, seed:int = 42):
         super().__init__()
 
         # 100 nanometers / step_size nanometer
@@ -19,8 +20,9 @@ class PEDS(nnx.Module):
         self.activation = activation
         self.learn_residual = learn_residual
 
-        # Create model
-        key = nnx.Rngs(42)
+       
+        rng = jax.random.PRNGKey(seed)
+        key = nnx.Rngs({'params': rng})
 
         self.generator = mlp(layer_sizes=self.layer_sizes, activation = activation, rngs=key, initialization=initialization) # 
         

@@ -13,7 +13,7 @@ from uqmethods.al import DatasetAL
 
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"
 
-from config_experiment import e2 as exp_config
+from config_experiment import e3 as exp_config
 from config_model import m2 as model_config
 
 
@@ -28,7 +28,7 @@ rngs = nnx.Rngs(exp_config["seed"])
 create_folders(exp_config['exp_name'], model_config['model_name']) # experiment name
 
 model = select_model(
-    rngs=rngs, 
+    seed=exp_config["seed"],    
     model_type=model_config["model"], 
     resolution=model_config["resolution"], 
     learn_residual=model_config["learn_residual"], 
@@ -40,7 +40,7 @@ model = select_model(
 )
 
 # Params initializing or restoring
-model, checkpointer = initialize_or_restore_params(model, model_config["model_name"], base_dir= "experiments/" + exp_config['exp_name'] + "/weights", rank=rank) # check or do it deeper
+model, checkpointer = initialize_or_restore_params(model, model_config["model_name"], base_dir= "experiments/" + exp_config['exp_name'] + "/weights", rank=rank, seed=exp_config['seed']) # check or do it deeper
 
 # Ingest data
 if exp_config['al']:
@@ -65,24 +65,28 @@ else:
 if exp_config['training']:
     if rank == 0:
         print(f"Training on {size} devices...")
-    mse_train, mse_test, perc_error_test = train_model(
+    model, mse_train, mse_test, perc_error_test = train_model(
         exp_name=exp_config['exp_name'], 
         model_name=model_config["model_name"],
         dataset_al= dataset_al,
         dataset_train=dataset_train,
         dataset_test=dataset_test,
-        model=model,
+        model_real=model,
         learn_rate_min=exp_config["learn_rate_min"], 
         learn_rate_max=exp_config["learn_rate_max"], 
         schedule=exp_config["schedule"], 
         epochs=exp_config["epochs"], 
         batch_size=exp_config["batch_size"],
-        checkpointer=checkpointer
+        checkpointer=checkpointer,
+        debug=True
         )
+    if rank == 0:
+        # Params initializing or restoring
+        model, checkpointer = initialize_or_restore_params(model, model_config["model_name"], base_dir= "experiments/" + exp_config['exp_name'] + "/weights", rank=rank, seed=exp_config['seed']) # check or do it deeper
 
-if exp_config['valid'] and rank == 0 and not exp_config['al']:
-    print("Validation...")
-    final_validation(exp_config["exp_name"], model, model_config['model_name'], dataset_valid_small, mse_train, mse_test, perc_error_test)
+        print("Validation...")
+        final_validation(exp_config["exp_name"], model, model_config['model_name'], dataset_valid_small, mse_train, mse_test, perc_error_test)
+
 
 if rank == 0 and exp_config['optimization']:
     

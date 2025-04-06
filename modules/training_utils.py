@@ -268,7 +268,7 @@ def update_curves(model_name):
     return n_past_epoch
 
 
-def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min):
+def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, valid_variance, schedule, learn_rate_max, learn_rate_min):
     try:
         curves = np.load(f"experiments/{exp_name}/curves/training_curves_{model_name}.npz", allow_pickle=True)
         
@@ -277,6 +277,7 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
         epoch_losses_tot = np.concatenate([curves['epoch_losses'][:n_past_epoch], epoch_losses[:epoch]])
         valid_losses_tot = np.concatenate([curves['valid_losses'][:n_past_epoch:], valid_losses[:epoch]])
         valid_perc_losses_tot = np.concatenate([curves['valid_perc_losses'][:n_past_epoch:], valid_perc_losses[:epoch]])
+        valid_variance_tot = np.concatenate([curves['valid_variance'][:n_past_epoch:], valid_variance[:epoch]])
         
         # Calculate total epochs
         epoch_tot = len(epoch_losses_tot)
@@ -289,6 +290,7 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
             epoch_losses=epoch_losses_tot,
             valid_losses=valid_losses_tot, 
             valid_perc_losses=valid_perc_losses_tot,
+            valid_variance = valid_variance_tot,
             allow_pickle=True
         )
     except Exception as e:
@@ -300,26 +302,17 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
             epoch_losses=epoch_losses,
             valid_losses=valid_losses, 
             valid_perc_losses=valid_perc_losses,
+            valid_variance = valid_variance,
             allow_pickle=True
         )
 
 
-def log_training_progress(model, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times):
+def log_training_progress(model, model_id, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times):
     if (epoch + 1) % 25 == 0:  # Always true, but keeps the structure flexible
-        epoch_str = f"Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch}, Training Loss: {avg_loss:.2f}, Validation Loss: {avg_val_loss:.2f}, {total_loss_perc:.2f}%, Time: {epoch_times[epoch]:.2f}s"
+        epoch_str = f"M{model_id} | Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch} | TrainLoss: {avg_loss:.2f}, ValLoss: {avg_val_loss:.2f}, {total_loss_perc:.2f}%, {epoch_times[epoch]:.2f}s"
+        print(epoch_str)
         
-        if not isinstance(model, ensemble) and rank == 0:
-            print(epoch_str)
-        elif isinstance(model, ensemble):
-            if rank == 0:
-                print(f"M1: {epoch_str}")
-            elif rank == 1:
-                print(f"M2: {epoch_str}")
         
         sys.stdout.flush()
-
-def curves_params(exp_name, model_name, model, checkpointer, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min):
-    plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, learn_rate_max, learn_rate_min)
-    save_params(exp_name, model_name, model, checkpointer)
 
 
