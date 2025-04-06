@@ -13,16 +13,21 @@ def gradient_opt(model, target, seed, neigh=True, batch_size=10, steps=100, lr=0
             noise = jax.random.normal(jax.random.PRNGKey(0), params.shape) * 0.05
             perturbed_params = jnp.clip(params + noise, 0, 1)  
 
-            k = predict(model, perturbed_params)  
+            k, var = predict(model, perturbed_params)  
         
             return jnp.mean(jnp.abs(k - target))
     
     else:
-        pass
+        
+        def loss_fn(params, model, target):
+            k, var = predict(model, params)  
+        
+            return jnp.mean(jnp.abs(k - target))
+
 
     seed = seed.unwrap() if hasattr(seed, "unwrap") else seed # Extract JAX key if it's an nnx RngStream
 
-    params = jax.random.uniform(seed, (batch_size, 25))  # Continuous relaxation in [0,1]
+    params = jax.random.uniform(seed, (batch_size, 25))  # Continuous relaxation
 
     # Optimizer with momentum
     optimizer = optax.adam(lr)
@@ -44,8 +49,8 @@ def gradient_opt(model, target, seed, neigh=True, batch_size=10, steps=100, lr=0
     # Binarization step
     binary_params = (params > 0.5).astype(jnp.float32)
 
-    k = predict(model, params)  # Model output
-    k_binarized = predict(model, binary_params)  # Model output
+    k, _ = predict(model, params)  # Model output
+    k_binarized, _ = predict(model, binary_params)  # Model output
 
     # Compute loss for each element in batch
     losses = jnp.abs(k - target)  # Loss for continuous params

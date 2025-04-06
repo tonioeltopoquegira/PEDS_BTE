@@ -8,6 +8,10 @@ import jax
 import jax.numpy as jnp
 import jax.random as random
 
+import absl.logging
+absl.logging.set_verbosity('error')
+
+
 from models.ensembles import ensemble
 
 def get_shapes(params):

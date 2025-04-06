@@ -4,7 +4,7 @@ m1 = {
     "resolution": 5,
     "learn_residual": False,
     "hidden_sizes": [32, 32, 32],
-    "activation": "relu", 
+    "activation": "mixed", 
     "solver": "gauss",
     "initialization": "xavier",
     "n_models": 1
@@ -16,10 +16,10 @@ m2 = {
     "resolution": 5,
     "learn_residual": False,
     "hidden_sizes": [32, 32, 32],
-    "activation": "relu",
+    "activation": "mixed",
     "solver": "gauss",
     "initialization": "xavier",
-    "n_models": 2
+    "n_models": 4
 }
 
 m3 = {

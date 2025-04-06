@@ -13,8 +13,8 @@ from uqmethods.al import DatasetAL
 
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"
 
-from config_experiment import e3 as exp_config
-from config_model import m2 as model_config
+from config_experiment import e2 as exp_config
+from config_model import m1 as model_config # change to m2 for ensemble!
 
 
 # Initialize MPI
@@ -27,6 +27,7 @@ rngs = nnx.Rngs(exp_config["seed"])
 
 create_folders(exp_config['exp_name'], model_config['model_name']) # experiment name
 
+# Select, create and initialize models
 model = select_model(
     seed=exp_config["seed"],    
     model_type=model_config["model"], 
@@ -49,7 +50,7 @@ if exp_config['al']:
     dataset_train = dataset_al.initialize()
     dataset_test = dataset_al.get_test_set()
 
-else:
+elif not exp_config['al']:
     dataset_train, dataset_test, dataset_valid_small, kappas_design_valid = data_ingestion(
         rank=rank,
         exp_name=exp_config['exp_name'],

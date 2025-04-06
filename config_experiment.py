@@ -38,8 +38,8 @@ e2 = {
     "seed": 42,
 
     # Run
-    "training": True,
-    "valid": True, # change the validation to try different validations
+    "training": False,
+    "valid": False, # change the validation to try different validations
     "optimization": True,
 
 
@@ -74,9 +74,9 @@ e3 = {
     "seed": 42,
 
     # Run
-    "training": True,
-    "valid": True, # change the validation to try different validations
-    "optimization": False,
+    "training": False,
+    "valid": False, # change the validation to try different validations
+    "optimization": True,
 
 
     # Data

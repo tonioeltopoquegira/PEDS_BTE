@@ -1,16 +1,14 @@
-You can run run_optimization. It calls the wrapper 'optimize' that takes exp_name, model_name, model,opt, kappas, seed. 
-I will provide the model for testing (already trained). You don't care about this, it is just for testing purposes, you can ignore and just run the run_optimization.py file.
-You will just modify the gradient.py file in which a gradient-based optimizer is coded using jax automatic diff and optimizer ADAM:
-
-def step(params, opt_state):
-        loss, grads = jax.value_and_grad(loss_fn)(params, model, target)
-        updates, opt_state = optimizer.update(grads, opt_state)
-        params = optax.apply_updates(params, updates)
-        return params, opt_state, loss
-
-
 What I would like you to do is the following:
 1. Try to exploit the fact that model is batch-independent (computes kappa for 1 pores in basically the same time as for 200 pores). 
 It would be stupid not exploiting this for optimization purposes. Try to run N independent optimizations at the same time, i.e. one step computes 200 gradients and performs 200 independent updates.
 Currently I am using a stupid strategy in which I exploit this "perturbing" our current solution. Ignore that part and change it.
+
+2. Try optimization under uncertainty! predict(model, pores) outputs in the case of the ensemble a tuple (kappa_mean, kappa_var). We would like to use this fact
+and optimize not only for the value that is closest to kappa_target but also for the one with least variance (least model parameters uncertainty). 
+I would try it just adding the variance to the cost function loss = (kappa_target - kappa_mean)**2 + kappa_var but feel free to try something different!
+
+3. Currently we are optimizing in a "continuous relaxation" meaning that 25 parameters are binarized to 0-1 only after the optimization. Try to check the paper I sent you
+and apply those constraints. You can also create a penalty for getting outside of 0-1 that still gives us some room to explore the space.
+
+
 

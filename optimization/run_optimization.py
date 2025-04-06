@@ -46,7 +46,7 @@ def choose_optimizer(opt):
         return lambda model, k,seed: genetic_algorithm(model, k, seed,  n=25, pop_size=200, generations=40, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05)
     
     if opt == "grad":
-        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=True, batch_size=200, steps=50, lr=0.1)
+        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, batch_size=200, steps=400, lr=0.1)
     
     else:
         print("Unrecognized optimization method")
