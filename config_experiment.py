@@ -65,7 +65,7 @@ e2 = {
 
     # Optimization
     "opt": "grad",
-    "kappas": [10.0]
+    "kappas": [10.0, 15.0, 20.0, 30.]
 }
 
 
