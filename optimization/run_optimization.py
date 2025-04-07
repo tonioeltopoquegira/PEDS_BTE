@@ -74,7 +74,10 @@ if __name__ == "__main__":
     from config_model import m1 as model_config 
     # from config_model import m2 as model_config # Change this to m2 for ENSEMBLE model (UQ)
 
+    seed = nnx.Rngs(42)
+
     model = select_model(
+        seed=seed,
         rngs=rngs, 
         model_type=model_config["model"], 
         resolution=model_config["resolution"], 
@@ -87,8 +90,6 @@ if __name__ == "__main__":
     )
 
     model, checkpointer = initialize_or_restore_params(model,model_config["model_name"], base_dir= "experiments/opt_coding/weights", rank=0) # check or do it deeper
-
-    seed = nnx.Rngs(42)
 
     optimize(model_config["model_name"], model, "grad-adam", kappas, seed)
 

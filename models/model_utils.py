@@ -11,7 +11,6 @@ from models.ensembles import ensemble
 from solvers.low_fidelity_solvers.base_conductivity_grid_converter import conductivity_original_wrapper
 
 def select_model(seed, model_type, **kwargs):
-
     if model_type == "PEDS":
         return PEDS(
             resolution=kwargs["resolution"], 
