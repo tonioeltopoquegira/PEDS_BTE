@@ -56,7 +56,7 @@ def choose_optimizer(opt):
 if __name__ == "__main__":
 
     import os
-    os.chdir("/Users/antoniovaragnolo/Desktop/PEDSBoltzmann/Codes/")
+    # os.chdir("/Users/antoniovaragnolo/Desktop/PEDSBoltzmann/Codes/")
     print("Current working directory:", os.getcwd())
 
 
