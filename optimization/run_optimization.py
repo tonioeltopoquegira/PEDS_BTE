@@ -77,7 +77,7 @@ if __name__ == "__main__":
     seed = nnx.Rngs(42)
 
     model = select_model(
-        seed=seed,
+        seed=42,
         rngs=rngs, 
         model_type=model_config["model"], 
         resolution=model_config["resolution"], 
