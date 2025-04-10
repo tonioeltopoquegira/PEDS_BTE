@@ -85,7 +85,7 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
     best_k = k[best_idx]
     best_k_binarized = k_binarized[best_idx]
 
-    print("k", k)
+    print("k", k.shape)
     print("target", target)
     print("params", params.shape)
     print("best_params", best_params.shape)
@@ -96,6 +96,9 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
 
     processed_params = smoothed_heavside(best_params, 2.0, 0.5)
     binary_params = (processed_params > 0.5).astype(jnp.float32)
+
+    print("processed_params", processed_params.shape)
+
     k, _ = predict(model, processed_params)  # Model output
     k_binarized, _ = predict(model, binary_params)  # Model output
 
