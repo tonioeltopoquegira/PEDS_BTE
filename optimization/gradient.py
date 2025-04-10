@@ -35,7 +35,7 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
         def loss_fn(params, model, target):
             penalty = 0
             if smoothed:
-                params = smoothed_heavside(params, 2.0, 0.5)
+                # params = smoothed_heavside(params, 2.0, 0.5)
                 penalty = jnp.sum(jnp.minimum(jnp.abs(params - 0), jnp.abs(params - 1)))  # L1 distance from 0 or 1
 
             k, var = predict(model, params)  
