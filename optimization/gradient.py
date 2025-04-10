@@ -15,6 +15,9 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, batch_size=10, 
 
             k, var = predict(model, perturbed_params)  
 
+            if var is None:
+                var = 0.0
+                
             if min_var:
                 return jnp.mean((k - target) ** 2) + var
             else:
@@ -24,6 +27,9 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, batch_size=10, 
         
         def loss_fn(params, model, target):
             k, var = predict(model, params)  
+
+            if var is None:
+                var = 0.0
 
             if min_var:
                 return jnp.mean((k - target) ** 2) + var
