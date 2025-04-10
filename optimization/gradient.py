@@ -34,8 +34,8 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
         
         def loss_fn(params, model, target):
 
-            if smoothed:
-                params = smoothed_heavside(params, 2.0, 0.5)
+            # if smoothed:
+            #     params = smoothed_heavside(params, 2.0, 0.5)
 
             k, var = predict(model, params)  
 

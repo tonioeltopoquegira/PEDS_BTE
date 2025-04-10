@@ -92,7 +92,7 @@ if __name__ == "__main__":
         n_models = model_config['n_models']
     )
 
-    model, checkpointer = initialize_or_restore_params(model,model_config["model_name"], base_dir= "experiments/opt_coding/weights", rank=0) # check or do it deeper
+    model, checkpointer = initialize_or_restore_params(model,model_config["model_name"], base_dir= "experiments/opt_coding/weights", rank=0, seed=seed) # check or do it deeper
 
     optimize("test_exp", model_config["model_name"], model, "grad_var", kappas, seed)
     # optimize("test_exp", model_config["model_name"], model, "grad-adam", kappas, seed)
