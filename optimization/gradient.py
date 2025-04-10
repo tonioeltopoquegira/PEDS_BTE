@@ -34,8 +34,8 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
         
         def loss_fn(params, model, target):
 
-            # if smoothed:
-            #     params = smoothed_heavside(params, 2.0, 0.5)
+            if smoothed:
+                params = smoothed_heavside(params, 2.0, 0.5)
 
             k, var = predict(model, params)  
 
@@ -87,6 +87,15 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
 
     print(f"Best Found params: {best_params} with kappa= {best_k}")
     print(f"Binarized {best_binary_params} with kappa={best_k_binarized}")
+
+    processed_params = smoothed_heavside(best_params, 2.0, 0.5)
+    binary_params = (processed_params > 0.5).astype(jnp.float32)
+    k, _ = predict(model, processed_params)  # Model output
+    k_binarized, _ = predict(model, binary_params)  # Model output
+
+    print(f"Best Found params: {processed_params} with kappa= {k}")
+    print(f"Binarized {binary_params} with kappa={k_binarized}")
+
 
     return best_binary_params, best_k_binarized
 
