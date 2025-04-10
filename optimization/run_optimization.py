@@ -49,7 +49,7 @@ def choose_optimizer(opt):
         return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, batch_size=200, steps=400, lr=0.1)
     
     if opt == "grad_var":
-        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, batch_size=1, steps=200, lr=0.1)
+        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, batch_size=200, steps=200, lr=0.1)
     
     else:
         print("Unrecognized optimization method")
