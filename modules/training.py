@@ -14,7 +14,7 @@ import jax.numpy as jnp
 
 from modules.training_utils import (
     data_loader,
-    choose_schedule, accumulate_gradients,distribute_dataset, 
+    choose_schedule, accumulate_gradients,distribute_multicore, 
     mpi_allreduce_gradients, update_curves, log_training_progress,
     plot_update_learning_curves 
 )   
@@ -49,40 +49,14 @@ def train_model(
     n_past_epoch = update_curves(model_name)
     lr_schedule = choose_schedule(rank, schedule, learn_rate_min, learn_rate_max, epochs, exp_name, n_past_epoch)
 
+    dataset_train_local, dataset_test_local, sub_comm, local_rank, model_id = distribute_multicore(dataset_train, dataset_test, model_real, size, rank, comm)
+    
     if isinstance(model_real, ensemble):
-        n_models = model_real.n_models
-        ranks_per_model = size // n_models
-        model_id = rank // ranks_per_model
-
-        # --- Sanity Check: Assert each model gets the expected number of ranks ---
-        assert size % n_models == 0, "Number of processes not divisible by number of models"
-        
-        sub_comm = comm.Split(color=model_id, key=rank)
-       
-        # Retrieve the model for this ensemble member
-        
-
         model = model_real.models[model_id]
-        # Print the id of the model object to ensure they are different
-        checkpointers = checkpointer[model_id]
-        optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
-        local_rank = rank % ranks_per_model
-
-        # Distribute the dataset among only the cores assigned to this model.
-        dataset_train_local = distribute_dataset(dataset_train, local_rank, ranks_per_model)
-        dataset_test_local = distribute_dataset(dataset_test, local_rank, ranks_per_model)
-
     else:
         model = model_real
-        model_id = 0  # for logging consistency when single model
-        sub_comm = comm
-        optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
-        # For non-ensemble training, distribute across all ranks.
-        dataset_train_local = distribute_dataset(dataset_train, rank, size)
-        dataset_test_local = distribute_dataset(dataset_test, rank, size)
 
-
-    #print(dataset_test_local[0].shape)
+    optimizer = nnx.Optimizer(model, optax.adam(lr_schedule))
         
     def loss_and_grads(batch_local, epoch, batch_n, rank):
         pores, kappas = batch_local
@@ -124,9 +98,10 @@ def train_model(
 
     for epoch in range(epochs):
 
-        if dataset_al is not None and dataset_al.checkupdate(epoch) and rank == 0:
-            dataset_train = dataset_al.sample(model_real)
-            dataset_train_local = distribute_dataset(dataset_train, rank, size)
+        if dataset_al is not None and dataset_al.checkupdate(epoch):
+            dataset_train = dataset_al.sample(model, comm=comm, rank=rank)
+            dataset_train_local, dataset_test_local, _, _, _ = distribute_multicore(dataset_train, dataset_test, model_real, size, rank, comm)
+
             sys.stdout.flush()
 
         epoch_time = time.time()
@@ -153,9 +128,9 @@ def train_model(
         avg_val_loss, total_loss_perc = validate(dataset_test_local, batch_size, sub_comm, dataset_test[0].shape[0])
 
         # Log the training progress for each epoch
-        if (rank % (size // n_models) == 0):
+        if rank % (size // n_models) == 0:
             log_training_progress(model, model_id, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times)
-        
+
         if isinstance(model_real, ensemble):
             avg_val_loss, total_loss_perc, avg_val_var = valid_ensemble(model_real, epoch, comm, dataset_test, model, rank)
             valid_variance[epoch] = avg_val_var
@@ -214,3 +189,4 @@ def valid_ensemble(model_real, epoch, comm, dataset_test, model, rank):
         print(f"Ensemble : Epoch {epoch} | ValLoss: {ens_valid_err:.2f}, {ens_valid_perc:.2f}% | True kappas: {val_kappas[:3]}, Predicted: {kappa_pred_mean[:3]}, Variances: {kappa_pred_var[:3]}")
 
     return ens_valid_err, ens_valid_perc, ens_valid_var
+

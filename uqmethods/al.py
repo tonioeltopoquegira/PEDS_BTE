@@ -1,10 +1,13 @@
+import os
+import seaborn as sns
+import matplotlib.pyplot as plt
 import jax.numpy as jnp
 import jax.random as jrandom
 
 from models.model_utils import predict
 
 class DatasetAL:
-    def __init__(self, filename, M, N, K, T, seed):
+    def __init__(self, filename, M, N, K, T, exp_name, model_name, seed):
         full_data = jnp.load(f"data/highfidelity/{filename}", allow_pickle=True)
         self.key = jrandom.PRNGKey(seed)  # JAX key initialization
 
@@ -13,14 +16,18 @@ class DatasetAL:
         self.kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32)
 
         self.M = M  # Number of new samples per iteration
-        self.N = N  # Number of initial and test samples
-        self.K= K
-        self.T = T
+        self.N = N  # Number of initial samples for training
+        self.K = K  # Number of proposed new samples for active learning
+        self.T = T  # Epoch interval for proposing new samples
+
+        self.exp_name = exp_name
+        self.model_name = model_name
+        self.iterations = 0
 
         self.dataset_indices = None  # Training set indices
         self.test_indices = None  # Test set indices
 
-    def initialize(self):
+    def initialize(self, rank):
         """Initialize the dataset with N training and N test pairs."""
         self.key, subkey = jrandom.split(self.key)
 
@@ -30,36 +37,74 @@ class DatasetAL:
         # Split into test and initial training set
         self.test_indices = selected_indices[:self.N]
         self.dataset_indices = selected_indices[self.N:]
-        print(f"AL: Dataset initialized with {len(self.dataset_indices)} points")
+
+        # Ensure the test set is not part of the training set
+        if rank == 0:
+            print(f"AL: Dataset initialized with {len(self.dataset_indices)} training and {len(self.test_indices)} test points")
 
         return [self.pores[self.dataset_indices], self.kappas[self.dataset_indices]]
         
     def checkupdate(self, epoch):
-        return (epoch+1)% self.T == 0
+        """Check if the dataset should be updated based on the epoch."""
+        return (epoch + 1) % self.T == 0
 
-
-    def propose(self, model):
+    def propose(self, model, comm, rank):
         """Propose M new pores based on uncertainty."""
-        remaining_indices = jnp.setdiff1d(jnp.arange(self.pores.shape[0]), jnp.concatenate([self.dataset_indices, self.test_indices]))
+        # Exclude the test set from the remaining indices
+        remaining_indices = jnp.setdiff1d(
+            jnp.arange(self.pores.shape[0]),
+            jnp.concatenate([self.dataset_indices, self.test_indices])
+        )
+        
+        self.key, subkey = jrandom.split(self.key)
+        remaining_indices = jrandom.choice(subkey, remaining_indices, (2 * self.K,), replace=False)
+
         proposed_pores = self.pores[remaining_indices]
+        if rank == 0:
+            print(f'Proposed {len(proposed_pores)} new samples.')
 
-        print(type(model))
+        # Use the model to predict the mean of the new proposed samples
+        kappa_mean, _ = predict(model, proposed_pores, training=False)
 
-        kappa_mean, kappa_var = predict(model, proposed_pores, training=False)
+        comm.Barrier()
 
-        # Select M/3 points with highest uncertainty
-        top_indices = jnp.argsort(-kappa_var)[: self.K]
+        # Gather the kappa mean predictions from all ranks
+        kappa_pred_all = comm.allgather(kappa_mean)
+        kappa_pred_stacked = jnp.stack(kappa_pred_all)
+
+        # Calculate variance (uncertainty) across the ranks
+        kappa_pred_var = jnp.var(kappa_pred_stacked, axis=0)
+
+        # Select K points with the highest uncertainty (variance)
+        top_indices = jnp.argsort(-kappa_pred_var)[:self.K]
+        if rank == 0:
+            print(f'Taken {len(top_indices)} samples with highest uncertainty:\n {kappa_pred_var[top_indices[:5]]}')
 
         return remaining_indices[top_indices]
 
-    def sample(self, model, iteration=0):
+    def sample(self, model, comm, rank, iteration=0):
         """Expand the dataset with proposed points."""
-        new_indices = self.propose(model)
+        new_indices = self.propose(model, comm, rank)
         self.dataset_indices = jnp.concatenate([self.dataset_indices, new_indices])
 
-        print(f"AL: Dataset has now {len(self.dataset_indices)} points")
+        self.iterations+=1
+
+        if rank == 0:
+            print(f"{self.iterations}) AL: Dataset has now {len(self.dataset_indices)} points")
+            self.plot_dist()
+
+        
 
         return [self.pores[self.dataset_indices], self.kappas[self.dataset_indices]]
+
+    def plot_dist(self):
+        """ Plots the train distribution using KDE (Kernel Density Estimation) """
+        os.makedir(f"experiments/{self.exp_name}/figures/al/")
+        sns.kdeplot(self.pores[self.dataset_indices], shade=True)
+        plt.title(f"Training Distribution at {self.iterations} iteration")
+        plt.xlabel("Pores")
+        plt.ylabel(f"Density")
+        plt.savefig('experiments/{self.exp_name}/figures/al/{self.model_name}_{self.iterations}.png')
 
     def get_test_set(self):
         """Return the reserved test set."""

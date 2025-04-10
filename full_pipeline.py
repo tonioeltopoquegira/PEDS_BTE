@@ -13,8 +13,8 @@ from uqmethods.al import DatasetAL
 
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"
 
-from config_experiment import e2 as exp_config
-from config_model import m1 as model_config # change to m2 for ensemble!
+from config_experiment import basic_1000_train as exp_config
+from config_model import arch1 as model_config # change to m2 for ensemble!
 
 
 # Initialize MPI
@@ -47,10 +47,12 @@ model, checkpointer = initialize_or_restore_params(model, model_config["model_na
 if exp_config['al']:
 
     dataset_al = DatasetAL(exp_config['filename_data'], exp_config['M'], exp_config['N'], exp_config['K'], exp_config['T'], exp_config['seed'])
-    dataset_train = dataset_al.initialize()
+    dataset_train = dataset_al.initialize(rank)
+    print(dataset_train[1][0])
     dataset_test = dataset_al.get_test_set()
 
 elif not exp_config['al']:
+
     dataset_train, dataset_test, dataset_valid_small, kappas_design_valid = data_ingestion(
         rank=rank,
         exp_name=exp_config['exp_name'],
@@ -91,10 +93,10 @@ if exp_config['training']:
 
 if rank == 0 and exp_config['optimization']:
     
-    if exp_config['kappas'] is None and not exp_config['al']:
-        exp_config['kappas'] = kappas_design_valid.tolist()
-    
-    kappas_valid = exp_config['kappas']
+    if exp_config['kappas'] is None:
+        kappas_valid = kappas_design_valid.tolist()
+    else:
+        kappas_valid = exp_config['kappas']
 
     optimize(
         exp_name=exp_config['exp_name'],

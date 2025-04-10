@@ -70,9 +70,8 @@ def genetic_algorithm(model, target, seed, n=25, pop_size=100, generations=40, c
         if isinstance(model, PEDS):
             batch = batch.reshape((batch.shape[0], 5, 5))  # Shape: (batch_size, 1, 5, 5)
             
-        kappas = predict(model, batch) 
+        kappas, _ = predict(model, batch) 
 
-       
         # Compute fitness as the absolute difference from the target
         return [(np.abs(kappa - target),) for kappa in kappas]
 

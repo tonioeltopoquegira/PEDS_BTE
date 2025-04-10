@@ -43,7 +43,7 @@ def optimize(exp_name, model_name, model,opt, kappas, seed):
 def choose_optimizer(opt):
 
     if opt == "ga":
-        return lambda model, k,seed: genetic_algorithm(model, k, seed,  n=25, pop_size=200, generations=40, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05)
+        return lambda model, k,seed: genetic_algorithm(model, k, seed,  n=25, pop_size=500, generations=60, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05)
     
     if opt == "grad":
         return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, batch_size=200, steps=400, lr=0.1)

@@ -34,27 +34,53 @@ m3 = {
     "n_models": 1
 }
 
-"""def train_step(model, batch_local, epoch, batch_n, rank, n_past_epoch, model_name, exp_name, model_id):
-        pores, kappas = batch_local
+# Exp train 100
 
-        #print(f"[LOSS 1] Global rank {rank} -> Model ID {model_id}, Model object id: {id(model)}")
+arch1 = {
+    "model_name": "peds_arch14",
+    "model": "PEDS",
+    "resolution": 5,
+    "learn_residual": False,
+    "hidden_sizes": [32, 32, 32],
+    "activation": "mixed", 
+    "solver": "gauss",
+    "initialization": "xavier",
+    "n_models": 1
+}
 
-        def loss_fn(model):
-            kappa_pred, kappa_var = predict(
-                model, pores, training=True, epoch=epoch, 
-                n_past_epoch=n_past_epoch, model_name=model_name, 
-                exp_name=exp_name, kappas=kappas, batch_n=batch_n, rank=rank
-            )
-            residuals = kappa_pred - kappas
-            return jnp.sum(residuals**2)
+arch_direct = {
+    "model_name": "peds_direct",
+    "model": "PEDS",
+    "resolution": 5,
+    "learn_residual": False,
+    "hidden_sizes": [32, 32, 32],
+    "activation": "mixed", 
+    "solver": "direct",
+    "initialization": "xavier",
+    "n_models": 1
+}
 
-        loss, grads = nnx.value_and_grad(loss_fn)(model)
+arch2 = {
+    "model_name": "peds_arch2",
+    "model": "PEDS",
+    "resolution": 5,
+    "learn_residual": False,
+    "hidden_sizes": [32, 32, 32],
+    "activation": "relu", 
+    "solver": "gauss",
+    "initialization": "xavier",
+    "n_models": 1
+}
 
-        print(f"[LOSS 2] Global rank {rank} -> Model ID {model_id}, Model object id: {id(model)}: Loss {loss:.4f}")
+arch3 = {
+    "model_name": "peds_arch3",
+    "model": "PEDS",
+    "resolution": 5,
+    "learn_residual": False,
+    "hidden_sizes": [32, 32],
+    "activation": "relu", 
+    "solver": "gauss",
+    "initialization": "xavier",
+    "n_models": 1
+}
 
-
-       
-        return loss, grads
-
-
-"""

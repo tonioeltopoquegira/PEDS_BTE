@@ -204,35 +204,68 @@ class CustomCosineCycleSchedule(optax.schedules.Schedule):
         return self.min_value + (self.peak_value - self.min_value) * cosine_decay  # Scale
 
 
-def distribute_dataset(dataset, rank, size):
+def distribute_multicore(dataset_train, dataset_test, model_real, size, rank, comm):
     """
-    Distribute dataset among MPI ranks.
+    Distribute datasets and model training logic across MPI ranks. Supports both single models and ensembles.
 
     Args:
-    - dataset: List of arrays [pores, conductivities, kappas].
-    - rank: Current MPI rank.
-    - size: Total number of MPI processes.
+        dataset_train: Tuple of arrays (pores, kappas) for the training dataset
+        dataset_test: Tuple of arrays (pores, kappas) for the test dataset
+        model_real: The model or ensemble of models
+        size: Total number of MPI processes
+        rank: Current MPI rank
+        comm: MPI communicator
 
     Returns:
-    - Local dataset for this rank.
+        model: The model (or ensemble) assigned to the current rank
+        dataset_train_local: Local portion of the training dataset
+        dataset_test_local: Local portion of the test dataset
+        sub_comm: Sub-communicator for the current model
+        local_rank: Local rank within the sub-communicator
+        model_id: ID of the model in the ensemble (if applicable)
     """
-    pores, kappas = dataset
+    
+    # Handle ensemble models
+    if isinstance(model_real, ensemble):
+        n_models = model_real.n_models
+        assert size % n_models == 0, "Number of processes must be divisible by number of models"
+        ranks_per_model = size // n_models
+        model_id = rank // ranks_per_model
+        local_rank = rank % ranks_per_model
+        sub_comm = comm.Split(color=model_id, key=rank)
+    else:
+        # Single model case
+        model_id = 0
+        ranks_per_model = size
+        local_rank = rank
+        sub_comm = comm
 
-    # Determine chunk size per rank
-    n_samples = pores.shape[0]
-    chunk_size = n_samples // size
+    # Distribute training dataset
+    pores_train, kappas_train = dataset_train
+    n_samples_train = pores_train.shape[0]
+    assert n_samples_train % ranks_per_model == 0, "Training dataset must be divisible by ranks per model"
+    
+    chunk_size_train = n_samples_train // ranks_per_model
+    start_idx_train = local_rank * chunk_size_train
+    end_idx_train = start_idx_train + chunk_size_train
+    local_pores_train = pores_train[start_idx_train:end_idx_train]
+    local_kappas_train = kappas_train[start_idx_train:end_idx_train]
+    dataset_train_local = (local_pores_train, local_kappas_train)
 
-    assert n_samples % size == 0, "Dataset size must be divisible by the number of MPI processes"
+    # Distribute test dataset
+    pores_test, kappas_test = dataset_test
+    n_samples_test = pores_test.shape[0]
+    assert n_samples_test % ranks_per_model == 0, "Test dataset must be divisible by ranks per model"
+    
+    chunk_size_test = n_samples_test // ranks_per_model
+    start_idx_test = local_rank * chunk_size_test
+    end_idx_test = start_idx_test + chunk_size_test
+    local_pores_test = pores_test[start_idx_test:end_idx_test]
+    local_kappas_test = kappas_test[start_idx_test:end_idx_test]
+    dataset_test_local = (local_pores_test, local_kappas_test)
 
-    # Compute local data slice
-    start_idx = rank * chunk_size
-    end_idx = start_idx + chunk_size
-
-    # Slice the dataset for this rank
-    local_pores = pores[start_idx:end_idx]
-    local_kappas = kappas[start_idx:end_idx]
-
-    return [local_pores, local_kappas]
+    # Return all relevant information: 
+    return dataset_train_local, dataset_test_local, sub_comm, local_rank, model_id
 
 
 def mpi_allreduce_gradients(local_grads, comm):
