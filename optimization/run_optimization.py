@@ -48,6 +48,9 @@ def choose_optimizer(opt):
     if opt == "grad":
         return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, batch_size=200, steps=400, lr=0.1)
     
+    if opt == "grad_var":
+        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, batch_size=200, steps=400, lr=0.1)
+    
     else:
         print("Unrecognized optimization method")
         pass
@@ -91,7 +94,7 @@ if __name__ == "__main__":
 
     model, checkpointer = initialize_or_restore_params(model,model_config["model_name"], base_dir= "experiments/opt_coding/weights", rank=0) # check or do it deeper
 
-    optimize("test_exp", model_config["model_name"], model, "grad", kappas, seed)
+    optimize("test_exp", model_config["model_name"], model, "grad_var", kappas, seed)
     # optimize("test_exp", model_config["model_name"], model, "grad-adam", kappas, seed)
 
 

@@ -5,7 +5,7 @@ from models.peds import PEDS
 from models.ensembles import ensemble
 from models.model_utils import predict
 
-def gradient_opt(model, target, seed, neigh=True, batch_size=10, steps=100, lr=0.1):
+def gradient_opt(model, target, seed, neigh=True, min_var=False, batch_size=10, steps=100, lr=0.1):
 
     if neigh:
 
@@ -14,8 +14,11 @@ def gradient_opt(model, target, seed, neigh=True, batch_size=10, steps=100, lr=0
             perturbed_params = jnp.clip(params + noise, 0, 1)  
 
             k, var = predict(model, perturbed_params)  
-        
-            return jnp.mean(jnp.abs(k - target))
+
+            if min_var:
+                return jnp.mean((k - target) ** 2) + var
+            else:
+                return jnp.mean(jnp.abs(k - target))
     
     else:
         
