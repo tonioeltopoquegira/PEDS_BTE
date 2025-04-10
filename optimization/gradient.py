@@ -44,9 +44,9 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
                 var = 0.0
 
             if min_var:
-                return jnp.mean((k - target) ** 2) + var + penalty * 0.1
+                return jnp.mean((k - target) ** 2) + var + penalty * 0.5
             else:
-                return jnp.mean(jnp.abs(k - target)) + penalty * 0.1
+                return jnp.mean(jnp.abs(k - target)) + penalty * 0.5
 
 
     seed = seed.unwrap() if hasattr(seed, "unwrap") else seed # Extract JAX key if it's an nnx RngStream
