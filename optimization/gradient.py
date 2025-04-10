@@ -33,9 +33,10 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
     else:
         
         def loss_fn(params, model, target):
-
+            penalty = 0
             if smoothed:
                 params = smoothed_heavside(params, 2.0, 0.5)
+                penalty = jnp.sum(jnp.minimum(jnp.abs(params - 0), jnp.abs(params - 1)))  # L1 distance from 0 or 1
 
             k, var = predict(model, params)  
 
@@ -43,9 +44,9 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
                 var = 0.0
 
             if min_var:
-                return jnp.mean((k - target) ** 2) + var
+                return jnp.mean((k - target) ** 2) + var + penalty
             else:
-                return jnp.mean(jnp.abs(k - target))
+                return jnp.mean(jnp.abs(k - target)) + penalty
 
 
     seed = seed.unwrap() if hasattr(seed, "unwrap") else seed # Extract JAX key if it's an nnx RngStream
