@@ -5,7 +5,14 @@ from models.peds import PEDS
 from models.ensembles import ensemble
 from models.model_utils import predict
 
-def gradient_opt(model, target, seed, neigh=True, min_var=False, batch_size=10, steps=100, lr=0.1):
+
+def smoothed_heavside(xi, beta, eta):
+    numerator = jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta))
+    denominator = jnp.tanh(beta * eta) + jnp.tanh(beta * (xi - eta))
+    return numerator / denominator
+
+
+def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, batch_size=10, steps=100, lr=0.1):
 
     if neigh:
 
@@ -17,7 +24,7 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, batch_size=10, 
 
             if var is None:
                 var = 0.0
-                
+
             if min_var:
                 return jnp.mean((k - target) ** 2) + var
             else:
@@ -26,6 +33,10 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, batch_size=10, 
     else:
         
         def loss_fn(params, model, target):
+
+            if smoothed:
+                params = smoothed_heavside(params, 2.0, 0.5)
+
             k, var = predict(model, params)  
 
             if var is None:
