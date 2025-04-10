@@ -41,6 +41,8 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
 
             k, var = predict(model, params)  
 
+            print('k shape:', k.shape)
+
             if var is None:
                 var = 0.0
 
@@ -60,7 +62,6 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
 
 
     def step(params, opt_state):
-        print('params shape:', params.shape)
         loss, grads = jax.value_and_grad(loss_fn)(params, model, target)
         updates, opt_state = optimizer.update(grads, opt_state)
         params = optax.apply_updates(params, updates)
