@@ -7,8 +7,8 @@ from models.model_utils import predict
 
 
 def smoothed_heavside(xi, beta, eta):
-    numerator = jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta))
-    denominator = jnp.tanh(beta * eta) + jnp.tanh(beta * (xi - eta))
+    numerator = jnp.tanh(beta * eta) + jnp.tanh(beta * (xi - eta))
+    denominator = jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta))
     return numerator / denominator
 
 
