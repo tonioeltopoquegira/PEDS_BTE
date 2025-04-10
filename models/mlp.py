@@ -8,6 +8,7 @@ class mlp(nnx.Module):
     def __init__(self, layer_sizes: list, activation: str, initialization: str, rngs: nnx.Rngs):
         super().__init__()
 
+
         if initialization == "he":
             dense_init = nnx.initializers.kaiming_normal()
         elif initialization == "xavier":
@@ -16,9 +17,10 @@ class mlp(nnx.Module):
         bias_init = nnx.initializers.constant(0.0)
             
         self.layers = [
-            nnx.Linear(i, o, kernel_init=dense_init, bias_init=bias_init, rngs=rngs) 
+            nnx.Linear(i, o, kernel_init=dense_init, bias_init=bias_init, rngs=rngs)
             for i, o in zip(layer_sizes[:-1], layer_sizes[1:])
         ]
+
         
         """if final_init:
             self.layers.pop(-1)

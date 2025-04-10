@@ -1,6 +1,6 @@
 basic_1000_train = {
     "exp_name": "train_1000",
-    "seed": 41,
+    "seed": 4,
 
     # Run
     "training": True,

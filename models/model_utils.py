@@ -24,12 +24,14 @@ def select_model(seed, model_type, **kwargs):
         )
     elif model_type == "MLP":
 
-        rngs = nnx.Rngs(seed=seed)
+        rng = jax.random.PRNGKey(seed)
+        key = nnx.Rngs({'params': rng})
+
         return mlp(
             layer_sizes=[25] + kwargs["hidden_sizes"] + [1],  # Assuming this maps correctly
             activation=kwargs["activation"],
             initialization=kwargs['initialization'], 
-            rngs=rngs
+            rngs=key
         )
     
     elif model_type == "ENSEMBLE":

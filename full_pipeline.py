@@ -14,7 +14,7 @@ from uqmethods.al import DatasetAL
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=8"
 
 from config_experiment import basic_1000_train as exp_config
-from config_model import arch1 as model_config # change to m2 for ensemble!
+from config_model import peds_mixedhe as model_config # change to m2 for ensemble!
 
 
 # Initialize MPI

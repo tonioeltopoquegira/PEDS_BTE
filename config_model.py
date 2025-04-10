@@ -37,7 +37,7 @@ m3 = {
 # Exp train 100
 
 arch1 = {
-    "model_name": "peds_arch14",
+    "model_name": "peds_arch1",
     "model": "PEDS",
     "resolution": 5,
     "learn_residual": False,
@@ -72,15 +72,43 @@ arch2 = {
     "n_models": 1
 }
 
-arch3 = {
-    "model_name": "peds_arch3",
-    "model": "PEDS",
+
+####
+
+mlpmod = {
+    "model_name": "mlp_4",
+    "model": "MLP",
     "resolution": 5,
     "learn_residual": False,
-    "hidden_sizes": [32, 32],
+    "hidden_sizes": [32, 32, 32],
     "activation": "relu", 
     "solver": "gauss",
     "initialization": "xavier",
     "n_models": 1
 }
 
+peds_base = {
+
+    "model_name": "peds",
+    "model": "PEDS",
+    "resolution": 5,
+    "learn_residual": False,
+    "hidden_sizes": [32, 32, 32],
+    "activation": "relu", 
+    "solver": "gauss",
+    "initialization": "xavier",
+    "n_models": 1
+
+}
+
+peds_mixed = {
+    "model_name": "peds_mixed",
+    "model": "PEDS",
+    "resolution": 5,
+    "learn_residual": False,
+    "hidden_sizes": [32, 32, 32],
+    "activation": "mixed", 
+    "solver": "gauss",
+    "initialization": "xavier",
+    "n_models": 1
+}
