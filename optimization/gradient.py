@@ -24,8 +24,11 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, batch_size=10, 
         
         def loss_fn(params, model, target):
             k, var = predict(model, params)  
-        
-            return jnp.mean(jnp.abs(k - target))
+
+            if min_var:
+                return jnp.mean((k - target) ** 2) + var
+            else:
+                return jnp.mean(jnp.abs(k - target))
 
 
     seed = seed.unwrap() if hasattr(seed, "unwrap") else seed # Extract JAX key if it's an nnx RngStream
