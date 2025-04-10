@@ -74,8 +74,8 @@ if __name__ == "__main__":
     rngs = nnx.Rngs(42)
 
     
-    from config_model import m1 as model_config 
-    # from config_model import m2 as model_config # Change this to m2 for ENSEMBLE model (UQ)
+    # from config_model import m1 as model_config 
+    from config_model import m2 as model_config # Change this to m2 for ENSEMBLE model (UQ)
 
     seed = nnx.Rngs(42)
 
