@@ -86,7 +86,7 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
     best_k_binarized = k_binarized[best_idx]
 
     print("k", k)
-    print("target", target.shape())
+    print("target", target)
     print("params", params.shape())
     print("best_params", best_params.shape())
     print("best_k_binarized", best_k_binarized.shape())
