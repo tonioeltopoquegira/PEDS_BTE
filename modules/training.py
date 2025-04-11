@@ -97,9 +97,10 @@ def train_model(
     valid_variance = np.zeros(epochs)
 
     for epoch in range(epochs):
-
+        
         if dataset_al is not None and dataset_al.checkupdate(epoch):
             dataset_train = dataset_al.sample(model, comm=comm, rank=rank)
+
             dataset_train_local, dataset_test_local, _, _, _ = distribute_multicore(dataset_train, dataset_test, model_real, size, rank, comm)
 
             sys.stdout.flush()
@@ -128,7 +129,9 @@ def train_model(
         avg_val_loss, total_loss_perc = validate(dataset_test_local, batch_size, sub_comm, dataset_test[0].shape[0])
 
         # Log the training progress for each epoch
-        if rank % (size // n_models) == 0:
+        if isinstance(model_real, ensemble):
+            log_training_progress(model, model_id, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times)
+        elif rank % (size // n_models) == 0:
             log_training_progress(model, model_id, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times)
 
         if isinstance(model_real, ensemble):
@@ -146,18 +149,17 @@ def train_model(
 
     
     # Final curves saving and return of final metrics.  
-    if (rank % (size // n_models) == 0):
-        plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, valid_variance, schedule, learn_rate_max, learn_rate_min)
-        if isinstance(model_real, ensemble):
-            model_name = model_name + f"/model_{rank}"
-            
-            save_params(exp_name, model_name, model, checkpointer[rank])
-            checkpointer[rank].wait_until_finished()  # <-- important!
-        else:
-            save_params(exp_name, model_name, model, checkpointer)
-            checkpointer.wait_until_finished()  # <-- important!
-
+   
+    plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, valid_variance, schedule, learn_rate_max, learn_rate_min)
+    if isinstance(model_real, ensemble):
+        model_name = model_name + f"/model_{rank}"
         
+        save_params(exp_name, model_name, model, checkpointer[rank])
+        checkpointer[rank].wait_until_finished()  # <-- important!
+    elif not isinstance(model_real, ensemble) and rank == 0:
+        save_params(exp_name, model_name, model, checkpointer)
+        checkpointer.wait_until_finished()  # <-- important!
+
     return model_real, avg_loss.item(), avg_val_loss.item(), total_loss_perc.item()
 
 

@@ -43,11 +43,27 @@ def select_model(seed, model_type, **kwargs):
             solver=kwargs["solver"],
             initialization=kwargs['initialization'], seed=seed+_) for _ in range(kwargs["n_models"])]
 
+        return ensemble(
+            models = models,
+            n_models=kwargs["n_models"],  # Default to 2 if not specified
+        )
+    
+    elif model_type == "ENSEMBLE_MLP":
+
+        models = [
+            mlp(
+            layer_sizes=[25] + kwargs["hidden_sizes"] + [1],  # Assuming this maps correctly
+            activation=kwargs["activation"],
+            initialization=kwargs['initialization'], 
+            rngs=nnx.Rngs({'params': jax.random.PRNGKey(seed + _) })
+        ) for _ in range(kwargs["n_models"])
+        ]
 
         return ensemble(
             models = models,
             n_models=kwargs["n_models"],  # Default to 2 if not specified
         )
+
 
 def predict(model, pores, training=False, **kwargs):
 

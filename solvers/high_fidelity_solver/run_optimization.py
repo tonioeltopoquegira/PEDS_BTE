@@ -3,9 +3,9 @@ import numpy as np
 import argparse
 from OpenBTE_highfid import highfidelity_solver
 
-def run_optimization(model_name, optimizer):
+def run_optimization(exp_name, model_name, optimizer):
     # Load results
-    results = pd.read_csv(f"data/optimization/{model_name}/{optimizer}_geometries_errors.csv")
+    results = pd.read_csv(f"experiments/{exp_name}/optimization/{optimizer}_{model_name}.csv")
     result_new = pd.DataFrame(columns=["kappa_target", "kappa_optimized", "error_optimization", "geometry", "kappa_BTE", "error_model"])
 
     for _, res in results.iterrows():
@@ -40,16 +40,17 @@ def run_optimization(model_name, optimizer):
         }, ignore_index=True)
 
     # Save updated results
-    result_new.to_csv(f"data/optimization/{model_name}/{optimizer}_geometries_errors_withBTE.csv", index=False)
-    print(f"Optimization results saved to data/optimization/{model_name}/{optimizer}_geometries_errors_withBTE.csv")
+    result_new.to_csv(f"experiments/{exp_name}/optimizations/{optimizer}_{model_name}_withBTE.csv", index=False)
+    print(f"Optimization results saved to experiments/{exp_name}/optimizations/{optimizer}_{model_name}_withBTE.csv")
 
 if __name__ == "__main__":
 
-    model_name = "exp1_eff_srgt/MLP_arch4_mixed_correct"
+    exp_name = "train_1000"
+
+    model_names = ["peds_mixed_smaller", "peds_mixed_smaller1", "peds_mixed_smaller2", "peds_mixed_smaller3", "peds_mixed_smaller4",
+                    "mlp", "mlp1", "mlp2", "mlp3", "mlp4"]
 
     optimizer = "ga"
-    
-    run_optimization(model_name, optimizer)
+    for m in model_names:
+        run_optimization(exp_name, m, optimizer)
 
-
-#python run_optimization.py "endtoend/PEDS_direct5_arch3_relu&free" "ga"

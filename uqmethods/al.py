@@ -8,7 +8,7 @@ from models.model_utils import predict
 
 class DatasetAL:
     def __init__(self, filename, M, N, K, T, exp_name, model_name, seed):
-        full_data = jnp.load(f"data/highfidelity/{filename}", allow_pickle=True)
+        full_data = jnp.load(f"data/highfidelity/high_fidelity_2_20000.npz", allow_pickle=True)
         self.key = jrandom.PRNGKey(seed)  # JAX key initialization
 
         # Load data
@@ -18,7 +18,7 @@ class DatasetAL:
         self.M = M  # Number of new samples per iteration
         self.N = N  # Number of initial samples for training
         self.K = K  # Number of proposed new samples for active learning
-        self.T = T  # Epoch interval for proposing new samples
+        self.T = T  # Epoch increase points
 
         self.exp_name = exp_name
         self.model_name = model_name
@@ -46,7 +46,7 @@ class DatasetAL:
         
     def checkupdate(self, epoch):
         """Check if the dataset should be updated based on the epoch."""
-        return (epoch + 1) % self.T == 0
+        return (epoch + 1) in self.T
 
     def propose(self, model, comm, rank):
         """Propose M new pores based on uncertainty."""
@@ -57,7 +57,7 @@ class DatasetAL:
         )
         
         self.key, subkey = jrandom.split(self.key)
-        remaining_indices = jrandom.choice(subkey, remaining_indices, (2 * self.K,), replace=False)
+        remaining_indices = jrandom.choice(subkey, remaining_indices, (self.M,), replace=False)
 
         proposed_pores = self.pores[remaining_indices]
         if rank == 0:
@@ -99,12 +99,12 @@ class DatasetAL:
 
     def plot_dist(self):
         """ Plots the train distribution using KDE (Kernel Density Estimation) """
-        os.makedir(f"experiments/{self.exp_name}/figures/al/")
-        sns.kdeplot(self.pores[self.dataset_indices], shade=True)
+        os.makedirs(f"experiments/{self.exp_name}/figures/al/", exist_ok=True)
+        sns.kdeplot(self.kappas[self.dataset_indices], fill=True)
         plt.title(f"Training Distribution at {self.iterations} iteration")
         plt.xlabel("Pores")
         plt.ylabel(f"Density")
-        plt.savefig('experiments/{self.exp_name}/figures/al/{self.model_name}_{self.iterations}.png')
+        plt.savefig(f'experiments/{self.exp_name}/figures/al/{self.model_name}_{self.iterations}.png')
 
     def get_test_set(self):
         """Return the reserved test set."""

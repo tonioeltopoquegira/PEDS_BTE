@@ -2,6 +2,7 @@ import os
 import numpy as np
 from models.mlp import mlp
 from models.peds import PEDS
+from models.ensembles import ensemble
 from flax import nnx
 import jax
 from modules.params_utils import initialize_or_restore_params
@@ -114,7 +115,6 @@ def genetic_algorithm(model, target, seed, n=25, pop_size=100, generations=40, c
                 ind.fitness.values = fit
         
         pop[:] = offspring
-        record = stats.compile(pop)
         hof.update(pop)
     
     #hof_array = geom.strip("\"").strip("[]")  # Remove quotes and brackets
@@ -123,7 +123,7 @@ def genetic_algorithm(model, target, seed, n=25, pop_size=100, generations=40, c
     hof_list = hof[0].tolist()
     hof_array = np.array(hof_list)
 
-    if isinstance(model, PEDS):
+    if isinstance(model, PEDS) or isinstance(model, ensemble):
         hof_array_resh = hof_array.reshape((1,5,5))
         k_pred, _ = model(hof_array_resh)
     else:
