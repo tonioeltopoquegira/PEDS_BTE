@@ -82,7 +82,7 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, use_smoothed=Tr
         k_bin, var_smoothed = predict(model, binary_params)
 
         if _ % 40 == 39:
-            beta *= 1.5
+            beta *= 1.75
             print("Update Beta:", beta)
         # if _ % 20 == 0 and _ != 0:
         #     beta += 3
