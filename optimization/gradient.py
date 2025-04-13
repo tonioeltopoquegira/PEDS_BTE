@@ -74,7 +74,7 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, use_smoothed=Tr
     # Optimization loop
     for _ in range(steps):
         params, opt_state, loss = step(params, opt_state, beta)
-        if _ % 10 == 9:
+        if _ % 40 == 39:
             beta *= 2
             print("Update Beta:", beta)
         if _ % 25 == 0:
