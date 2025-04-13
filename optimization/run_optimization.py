@@ -15,7 +15,8 @@ def optimize(exp_name, model_name, model,opt, kappas, seed):
     print(f"Start Optimization with {opt} for {kappas}... \n")
 
    
-    results_file = f"experiments/{exp_name}/optimization/{opt}_{model_name}.csv"
+    # results_file = f"experiments/{exp_name}/optimization/{opt}_{model_name}.csv"
+    results_file = f"{exp_name}_{opt}_{model_name}.csv"
 
     # Load existing results if the file exists, otherwise create a new DataFrame
     if os.path.exists(results_file):

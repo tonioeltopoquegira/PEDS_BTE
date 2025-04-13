@@ -105,7 +105,7 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, use_smoothed=Tr
     print(f"Best Found params: {best_params} with kappa= {best_k}")
     print(f"Binarized {best_binary_params} with kappa={best_k_binarized}")
 
-    processed_params = smoothed_heavside(best_params.reshape((1, 25)), 2.0, 0.5)
+    processed_params = smoothed_heavside(best_params.reshape((1, 25)), beta, 0.5)
     binary_params = (processed_params > 0.5).astype(jnp.float32)
 
     # print("processed_params", processed_params.shape)
