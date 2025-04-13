@@ -53,7 +53,7 @@ def choose_optimizer(opt):
         return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, batch_size=200, steps=200, lr=0.1)
 
     if opt == 'smoothed':
-        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, use_smoothed=True, use_penalty=False, batch_size=200, steps=200, lr=0.1)
+        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, use_smoothed=True, use_penalty=False, batch_size=200, steps=400, lr=0.1)
     
     else:
         print("Unrecognized optimization method")
@@ -99,5 +99,5 @@ if __name__ == "__main__":
     model, checkpointer = initialize_or_restore_params(model,model_config["model_name"], base_dir= "experiments/opt_coding/weights", rank=0, seed=42) # check or do it deeper
 
     # optimize("test_exp", model_config["model_name"], model, "grad_var", kappas, seed)
-    optimize("smoothed1", model_config["model_name"], model, "smoothed", kappas, seed)
+    optimize("smoothed2", model_config["model_name"], model, "smoothed", kappas, seed)
     # optimize("test_exp", model_config["model_name"], model, "grad-adam", kappas, seed)
