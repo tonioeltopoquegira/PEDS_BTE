@@ -53,7 +53,7 @@ def choose_optimizer(opt):
         return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, batch_size=200, steps=200, lr=0.1)
 
     if opt == 'smoothed':
-        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, use_smoothed=True, use_penalty=False, batch_size=200, steps=400, lr=0.1)
+        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, use_smoothed=True, use_penalty=False, batch_size=200, steps=400, lr=0.01)
     
     else:
         print("Unrecognized optimization method")
