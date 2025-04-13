@@ -96,6 +96,3 @@ if __name__ == "__main__":
 
     optimize("test_exp", model_config["model_name"], model, "grad_var", kappas, seed)
     # optimize("test_exp", model_config["model_name"], model, "grad-adam", kappas, seed)
-
-
-

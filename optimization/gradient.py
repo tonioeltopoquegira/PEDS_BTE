@@ -12,7 +12,7 @@ def smoothed_heavside(xi, beta, eta):
     return numerator / denominator
 
 
-def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, batch_size=10, steps=100, lr=0.1):
+def gradient_opt(model, target, seed, neigh=True, min_var=False, use_smoothed=True, use_penalty=True, batch_size=10, steps=100, lr=0.1):
 
     if neigh:
 
@@ -32,13 +32,15 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
     
     else:
         
-        def loss_fn(params, model, target):
-            penalty = 0
-            if smoothed:
-                params = smoothed_heavside(params, 2.0, 0.5)
+        def loss_fn(params, model, target, beta):
+            if use_smoothed:
+                params = smoothed_heavside(params, beta, 0.5)
                 # penalty = jnp.sum(jnp.minimum(jnp.abs(params - 0), jnp.abs(params - 1)))  # L1 distance from 0 or 1
-                penalty = jnp.sum(jnp.minimum((params - 0)**2, (params - 1)**2))  # L1 distance from 0 or 1
 
+            if use_penalty:  
+                penalty = jnp.sum(jnp.minimum((params - 0)**2, (params - 1)**2))  # L1 distance from 0 or 1
+            else:
+                penalty = 0.0
             k, var = predict(model, params)  
 
             print('k shape:', k.shape)
@@ -61,15 +63,20 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, smoothed=True, 
     opt_state = optimizer.init(params)
 
 
-    def step(params, opt_state):
-        loss, grads = jax.value_and_grad(loss_fn)(params, model, target)
+    def step(params, opt_state, beta):
+        loss, grads = jax.value_and_grad(loss_fn)(params, model, target, beta)
         updates, opt_state = optimizer.update(grads, opt_state)
         params = optax.apply_updates(params, updates)
         return params, opt_state, loss
 
+    beta = 1.0
+
     # Optimization loop
     for _ in range(steps):
-        params, opt_state, loss = step(params, opt_state)
+        params, opt_state, loss = step(params, opt_state, beta)
+        if _ % 10 == 9:
+            beta *= 2
+            print("Update Beta:", beta)
         if _ % 25 == 0:
             print(f"Step {_} losses mean: {loss}")
     
