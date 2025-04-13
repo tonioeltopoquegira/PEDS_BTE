@@ -74,14 +74,21 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, use_smoothed=Tr
     # Optimization loop
     for _ in range(steps):
         params, opt_state, loss = step(params, opt_state, beta)
+
         params_smoothed = smoothed_heavside(params, beta, 0.5)
+        binary_params = (params_smoothed > 0.5).astype(jnp.float32)
         k, var = predict(model, params)
         k_smoothed, var_smoothed = predict(model, params_smoothed)
+        k_bin, var_smoothed = predict(model, binary_params)
+
         if _ % 40 == 39:
             beta *= 2
             print("Update Beta:", beta)
+        if _ % 10 == 9:
+            beta += 1
+            print("Update Beta:", beta)
         if _ % 10 == 0:
-            print(f"Step {_} losses mean: {loss}, smoothed: [{k_smoothed}, {var_smoothed}], [{k}, {var}]")
+            print(f"Step {_} losses mean: {loss}, smoothed: {k_smoothed}, bin: {k_bin}, orig:{k}]")
     
     # Binarization step
     binary_params = (params > 0.5).astype(jnp.float32)
