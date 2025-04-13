@@ -43,7 +43,7 @@ def gradient_opt(model, target, seed, neigh=True, min_var=False, use_smoothed=Tr
                 penalty = 0.0
             k, var = predict(model, params)  
 
-            print('k shape:', k.shape)
+            # print('k shape:', k.shape)
 
             if var is None:
                 var = 0.0
