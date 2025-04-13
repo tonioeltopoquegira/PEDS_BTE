@@ -47,7 +47,7 @@ def choose_optimizer(opt):
         return lambda model, k,seed: genetic_algorithm(model, k, seed,  n=25, pop_size=200, generations=40, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05)
     
     if opt == "grad":
-        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, batch_size=200, steps=400, lr=0.1)
+        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=False, use_smoothed=False, use_penalty=False, batch_size=200, steps=400, lr=0.1)
     
     if opt == "grad_var":
         return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, min_var=True, batch_size=200, steps=200, lr=0.1)
@@ -99,5 +99,5 @@ if __name__ == "__main__":
     model, checkpointer = initialize_or_restore_params(model,model_config["model_name"], base_dir= "experiments/opt_coding/weights", rank=0, seed=42) # check or do it deeper
 
     # optimize("test_exp", model_config["model_name"], model, "grad_var", kappas, seed)
-    optimize("test_exp", model_config["model_name"], model, "smoothed", kappas, seed)
+    optimize("smoothed1", model_config["model_name"], model, "grad", kappas, seed)
     # optimize("test_exp", model_config["model_name"], model, "grad-adam", kappas, seed)
