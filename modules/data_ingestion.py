@@ -53,7 +53,7 @@ def data_ingestion(rank, exp_name, train_size, test_size, key=42):
         plt.legend()
 
         # Show the plot
-        plt.savefig(f"experiments/{exp_name}/figures/kappa_traintest.png")
+        plt.savefig(f"experiments/{exp_name}/figures/kappa_traintest_{key}.png")
         plt.close()
 
     return dataset_train, dataset_test

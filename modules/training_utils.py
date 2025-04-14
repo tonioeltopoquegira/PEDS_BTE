@@ -283,10 +283,9 @@ def choose_activation(activation, num_layers):
         activation_functions = [hardtanh] * num_layers
     elif activation == "mixed":
         activation_functions = [nnx.relu] * (num_layers-1) 
-
         activation_functions.append(hardtanh)
-
-        
+    elif activation == "sigmoid":
+         activation_functions = [nnx.sigmoid] 
     
     return activation_functions
 
@@ -341,7 +340,7 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
 
 
 def log_training_progress(model, model_id, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times):
-    if (epoch + 1) % 25 == 0:  # Always true, but keeps the structure flexible
+    if (epoch + 1) % 5 == 0:  # Always true, but keeps the structure flexible
         epoch_str = f"M{model_id} | Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch} | TrainLoss: {avg_loss:.2f}, ValLoss: {avg_val_loss:.2f}, {total_loss_perc:.2f}%, {epoch_times[epoch]:.2f}s"
         print(epoch_str)
         

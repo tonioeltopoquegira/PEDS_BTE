@@ -35,6 +35,7 @@ def train_model(
     exp_name, model_name, 
     dataset_al, dataset_train, dataset_test, 
     model_real,
+    stop_perc,
     learn_rate_max, learn_rate_min, schedule, epochs,
     batch_size, checkpointer,
     debug=False  # add a flag to toggle debug logging
@@ -98,13 +99,14 @@ def train_model(
 
     for epoch in range(epochs):
         
-        if dataset_al is not None and dataset_al.checkupdate(epoch):
-            dataset_train = dataset_al.sample(model, comm=comm, rank=rank)
+        if dataset_al is not None and dataset_al.checkupdate(epoch, valid_perc_losses):
+            dataset_train = dataset_al.sample(model, comm=comm, rank=rank, epoch=epoch)
 
             dataset_train_local, dataset_test_local, _, _, _ = distribute_multicore(dataset_train, dataset_test, model_real, size, rank, comm)
 
             sys.stdout.flush()
 
+    
         epoch_time = time.time()
         grads, total_loss = None, 0.0
 
@@ -128,6 +130,8 @@ def train_model(
 
         avg_val_loss, total_loss_perc = validate(dataset_test_local, batch_size, sub_comm, dataset_test[0].shape[0])
 
+        epoch_times[epoch] = time.time() - epoch_time
+
         # Log the training progress for each epoch
         if isinstance(model_real, ensemble):
             log_training_progress(model, model_id, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times)
@@ -138,16 +142,18 @@ def train_model(
             avg_val_loss, total_loss_perc, avg_val_var = valid_ensemble(model_real, epoch, comm, dataset_test, model, rank)
             valid_variance[epoch] = avg_val_var
         
-        epoch_times[epoch] = time.time() - epoch_time
         epoch_losses[epoch] = avg_loss
         valid_losses[epoch] = avg_val_loss
         valid_perc_losses[epoch] = total_loss_perc
 
+        if total_loss_perc <= stop_perc:
             
+            print(f"Achieved percentual loss on test set of {stop_perc} in {epoch} epochs with {len(dataset_train_local[0])}")
+            break
+
         if epoch % 50 == 0:
             jax.clear_caches()
 
-    
     # Final curves saving and return of final metrics.  
    
     plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, valid_variance, schedule, learn_rate_max, learn_rate_min)

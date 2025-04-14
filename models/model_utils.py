@@ -15,6 +15,7 @@ def select_model(seed, model_type, **kwargs):
     if model_type == "PEDS":
         return PEDS(
             resolution=kwargs["resolution"], 
+            adapt_weights = kwargs["adapt_weights"],
             learn_residual=kwargs["learn_residual"], 
             hidden_sizes=kwargs["hidden_sizes"], 
             activation=kwargs["activation"], 
@@ -37,6 +38,7 @@ def select_model(seed, model_type, **kwargs):
     elif model_type == "ENSEMBLE":
         
         models = [PEDS(resolution=kwargs["resolution"], 
+            adapt_weights = kwargs["adapt_weights"],
             learn_residual=kwargs["learn_residual"], 
             hidden_sizes=kwargs["hidden_sizes"], 
             activation=kwargs["activation"], 
@@ -78,7 +80,7 @@ def predict(model, pores, training=False, **kwargs):
     if isinstance(model, PEDS):
         kappa_mean, conductivity_generated = model(pores, training)
         if training:
-            if (kwargs.get('epoch', 0) + 1 + kwargs.get('n_past_epoch', 0)) in [1, 2, 4, 7, 11, 17, 26, 39, 58, 86, 130, 195, 293, 440, 660, 999] and kwargs.get('batch_n', 0) == 0 and kwargs.get('rank', 0) == 0:
+            if ((kwargs.get('epoch', 0) + 1 + kwargs.get('n_past_epoch', 0)) % 25 == 0 or kwargs.get('epoch', 0) ==0) and kwargs.get('batch_n', 0) == 0 and kwargs.get('rank', 0) == 0:
                 plot_peds(model, pores, conductivity_res = conductivity_generated, model_name=kwargs.get('model_name'), exp_name=kwargs.get('exp_name'), epoch=kwargs.get('epoch') + 1 + kwargs.get('n_past_epoch'), kappa_predicted=kappa_mean, kappa_target=kwargs.get('kappas'))
     
     if isinstance(model, ensemble):
@@ -132,36 +134,24 @@ def plot_peds(model, pores, conductivity_res, epoch, model_name, exp_name, kappa
         fig.colorbar(im3, ax=axes[:, :3], orientation='horizontal', label='Conductivity')
 
     else:
-       # Create the figure and axes for 3x3 subplots
-        fig, axes = plt.subplots(3, 2, figsize=(12, 9), gridspec_kw={"width_ratios": [1, 1]})
+       
+        fig, axes = plt.subplots(3, 1, figsize=(5, 10), constrained_layout=True)
 
-        # Define the range for the color map to ensure all plots use the same scale
+        # Set global vmin and vmax
         vmin = min(np.min(c) for c in conductivity_res_numpy)
         vmax = max(np.max(c) for c in conductivity_res_numpy)
 
-        # Plot the conductivities and residuals in the subplots
+        # Create a placeholder for the last image handle (used for colorbar)
+        im = None
+
         for i in range(3):
-            # Base conductivity
-            """axes[i, 0].imshow(conductivities_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
-            if i == 0:
-                axes[i, 0].set_title('Base Conductivity')
-            if i == 1:
-                axes[i, 0].set_ylabel('y direction')"""
+            im = axes[i].imshow(conductivity_res_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
+            axes[i].set_title(f'Final Conductivity {i+1}')
+            axes[i].axis('off')
 
-            # Generated conductivity
-            im2 = axes[i, 1].imshow(conductivity_res_numpy[i], cmap='viridis', interpolation='nearest', vmin=vmin, vmax=vmax)
-            if i == 0:
-                axes[i, 1].set_title('Generated / Final Conductivity')
-
-            # Add text annotations for predicted vs. target values
-            fig.text(
-                0.90, 0.80 - i * 0.20,  # Adjust position based on row
-                f"Predicted: {kappa_predicted_n[i]:.2f}\nTarget: {kappa_target[i]:.2f}",
-                fontsize=10, color='black', ha='left', va='center'
-            )
-
-            # Create a single colorbar for all subplots (linked to final conductivity)
-        fig.colorbar(im2, ax=axes[:3, :], orientation='vertical', label='Conductivity')
+        # Add a colorbar that applies to all subplots
+        cbar = fig.colorbar(im, ax=axes, orientation='vertical', fraction=0.025, pad=0.04)
+        cbar.set_label('Conductivity')
 
     
     # Save the figure

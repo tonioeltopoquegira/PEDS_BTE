@@ -9,6 +9,7 @@ from models.peds import PEDS
 from models.ensembles import ensemble
 
 def final_validation(exp_name, model, model_name, dataset, mse_train, mse_test, perc_error):
+    print(exp_name)
     pores, kappa = dataset
     pores = pores.reshape((pores.shape[0], 25))
     if isinstance(model, PEDS):
