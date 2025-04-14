@@ -277,5 +277,6 @@ attempt_fouier = {
     "schedule": "cosine-cycles",
 
     # Optimization
-    "opt": "ga"
+    "opt": "ga",
+    "stochastic": True
 }
