@@ -10,7 +10,7 @@ from optimization.gradient import gradient_opt
 
 
 
-def optimize(exp_name, model_name, model,opt, kappas, seed):
+def optimize(exp_name, model_name, model, opt, kappas, stochastic, seed):
 
     print(f"Start Optimization with {opt} for {kappas}... \n")
 
@@ -27,12 +27,15 @@ def optimize(exp_name, model_name, model,opt, kappas, seed):
 
     for k in kappas:
 
-        design, kappa_optimized = optimizer(model, k, seed)
+        design, kappa_optimized, var_optimized = optimizer(model, k, stochastic, seed)
 
-        print(f"Optimized for {k}: found {kappa_optimized} for {design}")
+        if var_optimized is None:
+            var_optimized= 9999.0
+
+        print(f"Optimized for {k}: found {kappa_optimized} w/ {var_optimized} for {design}")
 
         # Append the results to the DataFrame
-        results = results._append({"kappa_target": k, "kappa_optimized": kappa_optimized.item(), "error_optimization": np.abs((k - kappa_optimized)/(k)).item(), "geometries": design.tolist()}, ignore_index=True)
+        results = results._append({"kappa_target": k, "kappa_optimized": kappa_optimized.item(), "var_optimized": var_optimized.item(), "error_optimization": np.abs((k - kappa_optimized)/(k)).item(), "geometries": design.tolist()}, ignore_index=True)
     
     # Save the DataFrame to the CSV file after every iteration
     results.to_csv(results_file, index=False)
@@ -43,10 +46,10 @@ def optimize(exp_name, model_name, model,opt, kappas, seed):
 def choose_optimizer(opt):
 
     if opt == "ga":
-        return lambda model, k,seed: genetic_algorithm(model, k, seed,  n=25, pop_size=500, generations=60, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05)
+        return lambda model, k, stochastic, seed: genetic_algorithm(model, k, stochastic, seed,  n=25, pop_size=500, generations=60, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05)
     
     if opt == "grad":
-        return lambda model, k, seed: gradient_opt(model, k,seed,  neigh=False, batch_size=200, steps=400, lr=0.1)
+        return lambda model, k, stochastic, seed: gradient_opt(model, k, stochastic, seed, steps=100, lr=0.1)
     
     else:
         print("Unrecognized optimization method")
@@ -56,8 +59,6 @@ def choose_optimizer(opt):
 if __name__ == "__main__":
 
     import os
-    os.chdir("/Users/antoniovaragnolo/Desktop/PEDSBoltzmann/Codes/")
-    print("Current working directory:", os.getcwd())
 
 
     from models.peds import PEDS
@@ -66,18 +67,20 @@ if __name__ == "__main__":
     from flax import nnx
 
 
-    kappas = [12.0]
+    kappas = [45.0]
 
     rngs = nnx.Rngs(42)
 
     
-    from config_model import m1 as model_config 
-    # from config_model import m2 as model_config # Change this to m2 for ENSEMBLE model (UQ)
+    from config_model import peds_fourier_ens as model_config 
+    seed = nnx.Rngs(42)
 
+   # Select, create and initialize models
     model = select_model(
-        rngs=rngs, 
+        seed=42,    
         model_type=model_config["model"], 
         resolution=model_config["resolution"], 
+        adapt_weights = model_config['adapt_weights'],
         learn_residual=model_config["learn_residual"], 
         hidden_sizes=model_config["hidden_sizes"], 
         activation=model_config["activation"],
@@ -86,11 +89,12 @@ if __name__ == "__main__":
         n_models = model_config['n_models']
     )
 
-    model, checkpointer = initialize_or_restore_params(model,model_config["model_name"], base_dir= "experiments/opt_coding/weights", rank=0) # check or do it deeper
+    # Params initializing or restoring
+    model, checkpointer = initialize_or_restore_params(model, model_config["model_name"], base_dir= "experiments/train_1000/weights", rank=0, seed=42) # check or do it deeper
 
-    seed = nnx.Rngs(42)
+   
 
-    optimize(model_config["model_name"], model, "grad-adam", kappas, seed)
+    optimize(exp_name="train_1000", model_name=model_config["model_name"], model=model, opt="grad", kappas=kappas, stochastic=True, seed=seed)
 
 
 

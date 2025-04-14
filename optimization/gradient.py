@@ -5,29 +5,22 @@ from models.peds import PEDS
 from models.ensembles import ensemble
 from models.model_utils import predict
 
-def gradient_opt(model, target, seed, neigh=True, batch_size=10, steps=100, lr=0.1):
+def gradient_opt(model, target, stochastic, seed, var_param=1.00, steps=100, lr=0.1, debug=True):
 
-    if neigh:
-
-        def loss_fn(params, model, target):
-            noise = jax.random.normal(jax.random.PRNGKey(0), params.shape) * 0.05
-            perturbed_params = jnp.clip(params + noise, 0, 1)  
-
-            k, var = predict(model, perturbed_params)  
-        
-            return jnp.mean(jnp.abs(k - target))
     
-    else:
         
-        def loss_fn(params, model, target):
-            k, var = predict(model, params)  
-        
-            return jnp.mean(jnp.abs(k - target))
+    def loss_fn(params, model, target):
+        k, var = predict(model, params) 
+        if stochastic:
+            print(f"Difference {jnp.abs(k-target).item()}, Variance {var.item()}, Total {jnp.abs(k-target).item() + var_param * var.item()}")
+            return jnp.abs(k - target) + var_param * var
+        else:
+            return jnp.abs(k - target)
 
 
     seed = seed.unwrap() if hasattr(seed, "unwrap") else seed # Extract JAX key if it's an nnx RngStream
 
-    params = jax.random.uniform(seed, (batch_size, 25))  # Continuous relaxation
+    params = jax.random.uniform(seed, (1, 25))  # Continuous relaxation
 
     # Optimizer with momentum
     optimizer = optax.adam(lr)
@@ -49,22 +42,12 @@ def gradient_opt(model, target, seed, neigh=True, batch_size=10, steps=100, lr=0
     # Binarization step
     binary_params = (params > 0.5).astype(jnp.float32)
 
-    k, _ = predict(model, params)  # Model output
-    k_binarized, _ = predict(model, binary_params)  # Model output
+    k, var = predict(model, params)  # Model output
+    k_binarized, var = predict(model, binary_params)  # Model output
 
-    # Compute loss for each element in batch
-    losses = jnp.abs(k - target)  # Loss for continuous params
-    best_idx = jnp.argmin(losses)  # Index of best parameter set
+    print(f"Best Found params: {params} with kappa= {k.item()}")
+    print(f"Binarized {binary_params} with kappa={k_binarized}")
 
-    # Select best parameters
-    best_params = params[best_idx]
-    best_binary_params = binary_params[best_idx]
-    best_k = k[best_idx]
-    best_k_binarized = k_binarized[best_idx]
-
-    print(f"Best Found params: {best_params} with kappa= {best_k}")
-    print(f"Binarized {best_binary_params} with kappa={best_k_binarized}")
-
-    return best_binary_params, best_k_binarized
+    return binary_params, k, var
 
 
