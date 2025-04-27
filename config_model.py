@@ -1,136 +1,191 @@
-# PEDS
-
-peds_base = {
-
-    "model_name": "peds_relu",
-    "model": "PEDS",
-    "resolution": 5,
-    "learn_residual": False,
-    "hidden_sizes": [32, 32, 32],
-    "activation": "relu", 
-    "solver": "gauss",
-    "initialization": "xavier",
-    "n_models": 1
-
-}
-
-peds_mixed = {
-    "model_name": "peds1",
-    "model": "PEDS",
-    "resolution": 5,
-    "learn_residual": False,
-    "hidden_sizes": [32, 32],
-    "activation": "mixed", 
-    "solver": "gauss",
-    "initialization": "xavier",
-    "n_models": 1
-}
-
-peds_small = {
-    "model_name": "pedsmall4",
-    "model": "PEDS",
-    "resolution": 5,
-    "learn_residual": False,
-    "hidden_sizes": [32, 32, 25],
-    "activation": "mixed", 
-    "solver": "gauss",
-    "initialization": "xavier",
-    "n_models": 1
-}
-
-peds_fourier = {
-    "model_name": "peds_fourier",
-    "model": "PEDS",
-    "resolution": 5,
-    "learn_residual": False,
-    "hidden_sizes": [32, 32],
-    "activation": "mixed", 
-    "solver": "fourier",
-    "initialization": "xavier",
-    "n_models": 1
-}
-
 # Baseline
 
 mlpmod = {
-    "model_name": "mlp1",
+    # Model name and type
+    "model_name": "mlp",
     "model": "MLP",
-    "resolution": 5,
-    "learn_residual": False,
+
+    # NN parameters
     "hidden_sizes": [32, 32, 32],
     "activation": "mixed", 
-    "solver": "gauss",
     "initialization": "xavier",
-    "n_models": 1
-}
 
-# Ensembles
-
-peds_ens = {
-    "model_name": "pedsensemble100",
-    "model": "ENSEMBLE",
+    # PEDS parameters
     "resolution": 5,
-    "learn_residual": False,
-    "hidden_sizes": [32, 32],
-    "activation": "mixed", 
-    "solver": "gauss",
-    "initialization": "xavier",
+    "adapt_weights": True,
+    "learn_residual": True,
+    "solver": "fourier",
+
+    # UQ
+    "uq_method": 0, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32],
+    "n_modes": 2,
     "n_models": 4
 }
 
-
-mlp_ens = {
-    "model_name": "mlpensemble",
-    "model": "ENSEMBLE_MLP",
-    "resolution": 5,
-    "learn_residual": False,
-    "hidden_sizes": [32, 32, 32],
-    "activation": "mixed", 
-    "solver": "gauss",
-    "initialization": "xavier",
-    "n_models": 10
-}
 
 peds_fourier = {
 
-    "model_name": "peds_fourier_ens6",
-    "model": "ENSEMBLE",
-    "resolution": 5,
-    "learn_residual": False,
+    # Model name and type
+    "model_name": "peds_fourier",
+    "model": "PEDS",
+
+    # NN parameters
     "hidden_sizes": [32, 32],
     "activation": "mixed", 
-    "solver": "fourier",
     "initialization": "xavier",
+
+    # PEDS parameters
+    "resolution": 5,
+    "adapt_weights": True,
+    "learn_residual": True,
+    "solver": "fourier",
+
+    # UQ
+    "uq_method": 0, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32], # 32 for best model
+    "n_modes": 1,
     "n_models": 4
 
 }
 
-peds_res_fourier = {
+peds_gauss = {
 
-    "model_name": "peds_fourier",
+    # Model name and type
+    "model_name": "peds_gauss",
     "model": "PEDS",
+
+    # NN parameters
+    "hidden_sizes": [32, 32],
+    "activation": "mixed", 
+    "initialization": "xavier",
+
+    # PEDS parameters
     "resolution": 5,
     "adapt_weights": True,
     "learn_residual": True,
-    "hidden_sizes": [32, 32],
-    "activation": "mixed", 
-    "solver": "fourier",
-    "initialization": "xavier",
-    "n_models": 1
+    "solver": "gauss",
+
+    # UQ
+    "uq_method": 0, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32], # 32 for best model
+    "n_modes": 1,
+    "n_models": 4
 
 }
 
-peds_fourier_ens = {
 
-    "model_name": "peds_f_ens",
+peds_f_ens = {
+
+    # Model name and type
+    "model_name": "peds_ens_fourier",
     "model": "ENSEMBLE",
+
+    # NN parameters
+    "hidden_sizes": [32, 32],
+    "activation": "mixed", 
+    "initialization": "xavier",
+
+    # PEDS parameters
     "resolution": 5,
     "adapt_weights": True,
     "learn_residual": True,
+    "solver": "fourier",
+
+    # UQ
+    "uq_method": 0, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32],
+    "n_modes": 2,
+    "n_models": 4
+
+}
+
+peds_g_ens = {
+
+    # Model name and type
+    "model_name": "peds_ens_gauss",
+    "model": "ENSEMBLE",
+
+    # NN parameters
     "hidden_sizes": [32, 32],
     "activation": "mixed", 
-    "solver": "fourier",
     "initialization": "xavier",
+
+    # PEDS parameters
+    "resolution": 5,
+    "adapt_weights": True,
+    "learn_residual": True,
+    "solver": "gauss",
+
+    # UQ
+    "uq_method": 0, # 0: basic ensemble, 1: logvar NN, 2: low order PCE
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32],
+    "n_modes": 2,
+    "n_models": 4
+
+}
+
+
+peds_f_ens_uq1 = {
+
+    # Model name and type
+    "model_name": "peds_ens_fourier_uq1",
+    "model": "ENSEMBLE",
+
+    # NN parameters
+    "hidden_sizes": [32, 32],
+    "activation": "mixed", 
+    "initialization": "xavier",
+
+    # PEDS parameters
+    "resolution": 5,
+    "adapt_weights": True,
+    "learn_residual": True,
+    "solver": "fourier",
+
+    # UQ
+    "uq_method": 1, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32],
+    "n_modes": 2,
+    "n_models": 4
+
+}
+
+peds_g_ens_uq1 = {
+
+    # Model name and type
+    "model_name": "peds_ens_gauss_uq1",
+    "model": "ENSEMBLE",
+
+    # NN parameters
+    "hidden_sizes": [32, 32],
+    "activation": "mixed", 
+    "initialization": "xavier",
+
+    # PEDS parameters
+    "resolution": 5,
+    "adapt_weights": True,
+    "learn_residual": True,
+    "solver": "gauss",
+
+    # UQ
+    "uq_method": 1, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32],
+    "n_modes": 2,
     "n_models": 4
 
 }

@@ -40,7 +40,6 @@ def fourier_solver(conductivity):
     kappa_effective = output['kappa_effective']
 
 
-
     return T, kappa_effective
 
 

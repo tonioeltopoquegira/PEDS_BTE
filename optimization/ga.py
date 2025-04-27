@@ -17,7 +17,7 @@ def prng_key_to_int(key):
     """Convert a JAX PRNGKey to an integer."""
     return int(jax.random.randint(key, (), 0, 2*10))  # Convert to a sa
 
-def genetic_algorithm(model, target,stochastic, seed, var_param=1.00, n=25, pop_size=100, generations=40, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05, debug=True):
+def genetic_algorithm(model, target,stochastic, seed, var_param=1.0, n=25, pop_size=100, generations=40, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05, debug=True):
     """
     Runs a genetic algorithm to optimize a design given a model and a target value.
     
@@ -76,10 +76,15 @@ def genetic_algorithm(model, target,stochastic, seed, var_param=1.00, n=25, pop_
         if stochastic:
             #return [(np.abs(kappa - target) + var_param * var,) for kappa, var in zip(kappas, vars)]
             errors = np.abs(kappas - target)
-            errors /= np.mean(errors) + 1e-8
-            vars /= np.mean(vars) + 1e-8
+            #errors /= np.mean(errors) + 1e-8
+            #vars /= np.mean(vars) + 1e-8
+
+            vars = np.exp(vars)
 
             fitness = errors + var_param * vars
+
+          
+            
             return [(float(f),) for f in fitness] 
         else:
             # Compute fitness as the absolute difference from the target

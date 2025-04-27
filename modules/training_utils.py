@@ -300,12 +300,14 @@ def update_curves(model_name):
     return n_past_epoch
 
 
-def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch_times, epoch_losses, valid_losses, valid_perc_losses, valid_variance, schedule, learn_rate_max, learn_rate_min):
+def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, metrics):
+
+    epoch_losses, valid_losses, valid_perc_losses, valid_variance = metrics["mse"], metrics["val_mse"], metrics["val_fract_error"], metrics["valid_variance"]
+
     try:
         curves = np.load(f"experiments/{exp_name}/curves/training_curves_{model_name}.npz", allow_pickle=True)
         
         # Concatenate only new data
-        epoch_times_tot = np.concatenate([curves['epoch_times'][:n_past_epoch], epoch_times[:epoch]])
         epoch_losses_tot = np.concatenate([curves['epoch_losses'][:n_past_epoch], epoch_losses[:epoch]])
         valid_losses_tot = np.concatenate([curves['valid_losses'][:n_past_epoch:], valid_losses[:epoch]])
         valid_perc_losses_tot = np.concatenate([curves['valid_perc_losses'][:n_past_epoch:], valid_perc_losses[:epoch]])
@@ -318,7 +320,6 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
         #plot_learning_curves(epoch_times_tot, epoch_losses_tot, valid_losses_tot, valid_perc_losses_tot, schedule, model_name, epoch_tot, learn_rate_max, learn_rate_min)
         np.savez(
             f"experiments/{exp_name}/curves/training_curves_{model_name}.npz", 
-            epoch_times=epoch_times_tot, 
             epoch_losses=epoch_losses_tot,
             valid_losses=valid_losses_tot, 
             valid_perc_losses=valid_perc_losses_tot,
@@ -330,7 +331,6 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
         #plot_learning_curves(epoch_times, epoch_losses, valid_losses, valid_perc_losses, schedule, model_name, epoch, learn_rate_max, learn_rate_min)
         np.savez(
             f"experiments/{exp_name}/curves/training_curves_{model_name}.npz", 
-            epoch_times=epoch_times, 
             epoch_losses=epoch_losses,
             valid_losses=valid_losses, 
             valid_perc_losses=valid_perc_losses,
@@ -339,12 +339,71 @@ def plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, epoch
         )
 
 
-def log_training_progress(model, model_id, rank, epoch, n_past_epoch, epochs, avg_loss, avg_val_loss, total_loss_perc, epoch_times):
-    if (epoch + 1) % 5 == 0:  # Always true, but keeps the structure flexible
-        epoch_str = f"M{model_id} | Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch} | TrainLoss: {avg_loss:.2f}, ValLoss: {avg_val_loss:.2f}, {total_loss_perc:.2f}%, {epoch_times[epoch]:.2f}s"
-        print(epoch_str)
+def log_training_progress(loss_type, model_id, epoch, n_past_epoch, epochs,
+                          avg_loss, avg_val_loss, total_loss_perc, epoch_time,
+                          train_mse=None, test_mse=None,
+                          log_var_loss=None, log_var_test=None,
+                          squared_loss=None, squared_loss_test=None):
+    extras = []
+
+    if (epoch + 1) % 1 == 0:
+        if loss_type == 0:
+            epoch_info = f"M{model_id} | Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch}"
+            loss_info = f"TrainMSE: {avg_loss:.2f}, ValMSE: {avg_val_loss:.2f}, FractError {total_loss_perc:.2f}%"
+            time_info = f"{epoch_time:.2f}s"
+        if loss_type == 1 or loss_type == 2:
+            epoch_info = f"M{model_id} | Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch}"
+            loss_info = f"TrainLoss: {avg_loss:.2f}, ValLoss: {avg_val_loss:.2f}, FractError {total_loss_perc:.2f}%"
+            time_info = f"{epoch_time:.2f}s"
+
+            if train_mse != 0 and test_mse !=0:
+                extras.append(f"MSE: {train_mse:.4f}/{test_mse:.4f}")
+            if log_var_loss !=0 and log_var_test !=0:
+                extras.append(f"LogVar: {log_var_loss:.2f}/{log_var_test:.2f}")
+            if squared_loss !=0 and squared_loss_test !=0:
+                extras.append(f"SquaredLoss: {squared_loss:.2f}/{squared_loss_test:.2f}")
         
+        extras_str = " | ".join(extras)
+        log_str = f"{epoch_info} | {loss_info} | {extras_str} | {time_info}" if extras else f"{epoch_info} | {loss_info} | {time_info}"
         
+        print(log_str)
         sys.stdout.flush()
 
+def compute_loss(uq_method, k_pred, k_target, logvar_pred, beta_loss):
 
+    if uq_method == 0:
+        return jnp.sum((k_pred - k_target)**2), (0.0, 0.0, jnp.sum((k_pred - k_target)**2))
+    elif uq_method == 1:
+        logvar_pred = jnp.clip(logvar_pred, a_min=1e-3)
+
+        # Compute element-wise NLL
+        log_term = jnp.sum(logvar_pred.squeeze(-1))
+
+        sq_term = ((k_target - k_pred) ** 2).reshape(-1,) / jnp.exp(logvar_pred.reshape(-1,))
+       
+        sq_term = jnp.sum(sq_term)
+
+
+        mse_loss = jnp.sum((k_target - k_pred) ** 2)
+
+       
+        return ( beta_loss * log_term + (1-beta_loss) * sq_term), (log_term, sq_term, mse_loss)
+    
+    elif uq_method == 2:
+        
+        logvar_pred = jnp.log(jnp.clip(logvar_pred, a_min=1e-3))
+        log_term = jnp.sum(logvar_pred)
+
+        sq_term = ((k_target - k_pred) ** 2).reshape(-1,) / jnp.exp(logvar_pred.reshape(-1,))
+       
+        sq_term = jnp.sum(sq_term)
+
+
+        mse_loss = jnp.sum((k_target - k_pred) ** 2)
+
+       
+        return ( beta_loss * log_term + (1-beta_loss) * sq_term), (log_term, sq_term, mse_loss)
+        
+
+
+    

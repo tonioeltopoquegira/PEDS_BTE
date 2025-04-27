@@ -9,6 +9,7 @@ import numpy as np
 
 
 from models.model_utils import predict
+from models.ensembles import ensemble
 
 class DatasetAL:
     def __init__(self, M, N, K, T, dynamic, test_size, converg_criteria_loss, exp_name, model_name, seed):
@@ -37,32 +38,58 @@ class DatasetAL:
 
     def initialize(self, rank):
         """Initialize the dataset with N training and N test pairs."""
-        self.key, subkey = jrandom.split(self.key)
-
+        total_size = self.N + self.test_size
         all_indices = jnp.arange(self.pores.shape[0])
-        selected_indices = jrandom.choice(subkey, all_indices, (self.N+self.test_size,), replace=False)
 
-        # Split into test and initial training set
-        self.test_indices = selected_indices[self.N:]
-        self.dataset_indices = selected_indices[:self.N]
+        indices = jrandom.permutation(self.key, all_indices)[:total_size + self.test_size]  # Shuffle indices
 
+        
+        # Mimic slicing from version 1
+        self.dataset_indices = indices[:self.N]  # train
+        self.test_indices = indices[self.N:total_size]  # test
+        self.valid_indices = indices[total_size:]  # validation
         # Ensure the test set is not part of the training set
         if rank == 0:
+  
             print(f"AL: Dataset initialized with {len(self.dataset_indices)} training and {len(self.test_indices)} test points")
-        
-        self.plot_dist()
+
+            # === Plotting kappa distribution for train and test ===
+
+            # Assuming self.kappas exists and is a JAX array
+            train_data = np.array(self.kappas[self.dataset_indices])
+            test_data = np.array(self.kappas[self.test_indices])
+
+            # Make sure the directory exists
+            os.makedirs(f"experiments/{self.exp_name}/figures", exist_ok=True)
+
+            plt.figure(figsize=(8, 6))
+            sns.kdeplot(train_data, label="Train Data", color="blue", fill=True)
+            sns.kdeplot(test_data, label="Test Data", color="red", fill=True)
+
+            plt.title("Distribution of kappas", fontsize=14)
+            plt.xlabel("Pore Values", fontsize=12)
+            plt.ylabel("Density", fontsize=12)
+            plt.legend()
+
+            plt.savefig(f"experiments/{self.exp_name}/figures/kappa_traintest_{self.key[0]}.png")
+            plt.close()
+            
+            self.plot_dist()
 
         return [self.pores[self.dataset_indices], self.kappas[self.dataset_indices]]
         
-    def checkupdate(self, epoch, train_loss_history):
+    def checkupdate(self, epoch, train_loss_history, achieved):
         """Check if the dataset should be updated based on the epoch."""
-        change = jnp.abs(train_loss_history[epoch-1] - train_loss_history[epoch-20])
+        change = jnp.abs(train_loss_history[epoch-1] - train_loss_history[epoch-26])
         if self.dynamic:
-            return change < self.converg_criteria_loss and (epoch - self.last_epoch > 50) 
+            check = change < self.converg_criteria_loss and (epoch - self.last_epoch > 100) and not achieved
+            if check:
+                print(train_loss_history[epoch-1], train_loss_history[epoch-26])
+            return check
         else:
-            return (epoch + 1) in self.T
+            return (epoch + 1) in self.T and not achieved
 
-    def propose(self, model, comm, rank):
+    def propose(self, model_real, model, comm, rank):
         """Propose M new pores based on uncertainty."""
         # Exclude the test set from the remaining indices
         remaining_indices = jnp.setdiff1d(
@@ -76,32 +103,39 @@ class DatasetAL:
         proposed_pores = self.pores[remaining_indices]
         if rank == 0:
             print(f'Proposed {len(proposed_pores)} new samples.')
-
+        
         # Use the model to predict the mean of the new proposed samples
-        kappa_mean, _ = predict(model, proposed_pores, training=False)
+        kappa_mean, kappa_pred_var = predict(model, proposed_pores, training=False)
 
-        comm.Barrier()
+        if isinstance(model_real, ensemble):
+            
+            comm.Barrier()
 
-        # Gather the kappa mean predictions from all ranks
-        kappa_pred_all = comm.allgather(kappa_mean)
-        kappa_pred_stacked = jnp.stack(kappa_pred_all)
+            # Gather the kappa mean predictions from all ranks
+            kappa_pred_all = comm.allgather(kappa_mean)
+            kappa_pred_stacked = jnp.stack(kappa_pred_all)
 
-        # Calculate variance (uncertainty) across the ranks
-        kappa_pred_var = jnp.var(kappa_pred_stacked, axis=0)
+            # Calculate variance (uncertainty) across the ranks
+            kappa_pred_var = jnp.var(kappa_pred_stacked, axis=0)
+        
+        else:
+            kappa_pred_var = jnp.exp(kappa_pred_var)
 
         # Select K points with the highest uncertainty (variance)
-        top_indices = jnp.argsort(-kappa_pred_var)[:self.K]
+        top_indices = jnp.argsort(-kappa_pred_var)[:(self.K)]
+
         if rank == 0:
             print(f'Taken {len(top_indices)} samples with highest uncertainty:\n {kappa_pred_var[top_indices[:5]]}')
 
         return remaining_indices[top_indices]
 
-    def sample(self, model, comm, rank, epoch):
+    def sample(self, model_real, model, comm, rank, epoch):
         """Expand the dataset with proposed points."""
-        new_indices = self.propose(model, comm, rank)
+        self.iterations+=1
+        new_indices = self.propose(model_real, model, comm, rank)
+        new_indices = jnp.reshape(new_indices, (-1,))
         self.dataset_indices = jnp.concatenate([self.dataset_indices, new_indices])
 
-        self.iterations+=1
         self.last_epoch = epoch
 
         if rank == 0:
@@ -142,6 +176,6 @@ class DatasetAL:
         plt.savefig(f'experiments/{self.exp_name}/figures/al/{self.model_name}_{self.iterations}.png')
 
 
-    def get_test_set(self):
+    def get_other_set(self):
         """Return the reserved test set."""
-        return [self.pores[self.test_indices], self.kappas[self.test_indices]]
+        return [self.pores[self.test_indices], self.kappas[self.test_indices]], [self.pores[self.valid_indices], self.kappas[self.valid_indices]]

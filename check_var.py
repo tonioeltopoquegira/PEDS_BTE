@@ -8,6 +8,7 @@ from config_model import peds_fourier_ens as model_config
 seed = nnx.Rngs(42)
 
 # Select, create and initialize models
+# Select, create and initialize models
 model = select_model(
     seed=42,    
     model_type=model_config["model"], 
@@ -18,11 +19,17 @@ model = select_model(
     activation=model_config["activation"],
     solver=model_config["solver"],
     initialization=model_config['initialization'],
-    n_models = model_config['n_models']
+
+    # uq args
+    n_models = model_config['n_models'],
+    uq_method=model_config['uq_method'],
+    n_modes=model_config['n_modes'],
+    hidden_sizes_uq=model_config['hidden_sizes_uq'],
 )
 
+
 # Params initializing or restoring
-model, checkpointer = initialize_or_restore_params(model, model_config["model_name"], base_dir= "experiments/train_1000/weights", rank=0, seed=42) # check or do it deeper
+model, checkpointer = initialize_or_restore_params(model, False, model_config["model_name"], base_dir= "experiments/earlystop/weights", rank=0, seed=42) # check or do it deeper
 
 
 designs = [jnp.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0]),

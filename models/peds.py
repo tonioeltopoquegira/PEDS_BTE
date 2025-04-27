@@ -2,6 +2,7 @@ from flax import nnx
 import jax.numpy as jnp
 import jax
 from models.mlp import mlp
+from uqmethods.uq_models import logvarnet, lowrankpce
 from solvers.low_fidelity_solvers.lowfidsolver_class import lowfid
 from solvers.low_fidelity_solvers.base_conductivity_grid_converter import conductivity_original_wrapper
 
@@ -11,7 +12,9 @@ class PEDS(nnx.Module):
 
     def __init__(self, resolution:int, 
                 adapt_weights: bool, learn_residual: bool, hidden_sizes:list, activation:str,
-                solver:str, initialization:str, seed:int = 42):
+                solver:str, initialization:str,
+                uq_method:int, n_modes:int, hidden_sizes_uq:list,
+                seed:int = 42):
         super().__init__()
 
         # 100 nanometers / step_size nanometer
@@ -20,9 +23,11 @@ class PEDS(nnx.Module):
         self.layer_sizes = [25] + hidden_sizes + [resolution**2]
         self.activation = activation
         self.learn_residual = learn_residual
-       
+
         rng = jax.random.PRNGKey(seed)
-        key = nnx.Rngs({'params': rng})
+        key = nnx.Rngs(rng, params=rng)
+
+        self.key = key
 
         if self.adapt_weights:
             self.wnn = mlp(layer_sizes=[25, 1], activation="sigmoid", rngs=key, initialization="he")
@@ -30,6 +35,29 @@ class PEDS(nnx.Module):
         
         # Low Fidelity Solver
         self.lowfidsolver = lowfid(solver=solver, iterations=1000)
+
+        self.uq_method = uq_method
+
+        # UQ
+        if uq_method == 1:
+            self.varnet = logvarnet(
+                hidden_sizes=hidden_sizes_uq,
+                rngs=key
+            )
+        elif uq_method == 2:
+            self.lowrankpce = lowrankpce(
+                hidden_sizes=hidden_sizes_uq,
+                n_modes=n_modes,
+                pde_solver=self.lowfidsolver,
+                rngs=key
+            )
+        # CANCEL THIS AFTER TESTING
+        self.lowrankpce = lowrankpce(
+                hidden_sizes=hidden_sizes_uq,
+                n_modes=n_modes,
+                pde_solver=self.lowfidsolver,
+                rngs=key
+            )
     
     def __call__(self, pores, training=False):
         batch_size = pores.shape[0]
@@ -42,7 +70,9 @@ class PEDS(nnx.Module):
         conductivity_generated = conductivity_generated_raw  # default to raw unless residual is applied
 
         if self.learn_residual:
+
             conductivities = conductivity_original_wrapper(pores, self.resolution)
+
             if self.adapt_weights:
                 w = nnx.jit(self.wnn, static_argnames=("training",))(pores, training)
                 w1 = jnp.expand_dims(w, -1)
@@ -56,6 +86,18 @@ class PEDS(nnx.Module):
         if self.activation == "relu":
             conductivity_generated = jnp.maximum(conductivity_generated, 1e-16)
 
+        kappa_var = None
+
         kappa = self.lowfidsolver(conductivity_generated)
         
-        return kappa, conductivity_generated_raw  # <- return only what the NN generated
+        if self.uq_method == 2:
+            kappa_mean, kappa_var = self.lowrankpce(
+                pores, conductivity_generated, training,
+                key=self.key
+            )
+       
+        # UQ
+        if self.uq_method == 1:
+            kappa_var = self.varnet(pores, training)
+       
+        return kappa, kappa_var, conductivity_generated_raw  # <- return only what the NN generated

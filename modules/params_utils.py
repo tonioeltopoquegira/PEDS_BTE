@@ -28,7 +28,7 @@ def filter_dropout(state):
     return state
 
 # Function for initializing or restoring model parameters
-def initialize_or_restore_params(generator, model_name, rank, base_dir, seed=None):
+def initialize_or_restore_params(generator, retrain, model_name, rank, base_dir, seed=None):
     """
     Initialize or restore model parameters based on the existence of a checkpoint.
 
@@ -46,7 +46,7 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir, seed=Non
     """
 
     if isinstance(generator, ensemble):
-        return initialize_or_restore_ensemble(generator, model_name, rank, base_dir, seed)
+        return initialize_or_restore_ensemble(generator, retrain, model_name, rank, base_dir, seed)
    
     if seed is not None:
         key = random.PRNGKey(seed)
@@ -68,33 +68,38 @@ def initialize_or_restore_params(generator, model_name, rank, base_dir, seed=Non
     #abstract_state = filter_dropout(abstract_state)
 
     try:
+        # Find the latest checkpoint directory
         last_checkpoint = max(
             (d for d in ckpt_dir.iterdir() if d.is_dir()),  # Consider all directories
-            key=lambda x: x.name.split('_')[-2] + '_' + x.name.split('_')[-1],  # Use the last two parts as timestamp
+            key=lambda x: x.name.split('_')[-2] + '_' + x.name.split('_')[-1],  # Timestamp-based sort
         )
-        if rank ==0:
+
+        if rank == 0:
             print(f"Found last checkpoint: {last_checkpoint}")
-        
-        # Attempt to restore the state
-        try:
-            checkpoint_to_restore = os.path.abspath(last_checkpoint)
-            state_restored = checkpointer.restore(checkpoint_to_restore , abstract_state)
-            state_restored = filter_dropout(state_restored)
-            
-            if rank ==0:
-                print(f"Successfully restored state from {last_checkpoint} and training curves")
-        except Exception as e:
-            if rank ==0:
-                print(f"Restoration failed with error: {e}. Initializing new parameters.")
-            state_restored = abstract_state  # Initialize new state
+
+        if not retrain:
+            # Attempt to restore the state from the checkpoint
+            try:
+                checkpoint_to_restore = os.path.abspath(last_checkpoint)
+                state_restored = checkpointer.restore(checkpoint_to_restore, abstract_state)
+                state_restored = filter_dropout(state_restored)
+
+                if rank == 0:
+                    print(f"Successfully restored state from {last_checkpoint} and training curves.")
+            except Exception as e:
+                if rank == 0:
+                    print(f"Restoration failed with error: {e}. Initializing new parameters.")
+                state_restored = abstract_state  # Fallback to new init
+        else:
+            if rank == 0:
+                print("Retrain mode enabled. Initializing new parameters without restoring checkpoint.")
+            state_restored = abstract_state
 
     except ValueError:
-        # If no checkpoint is found
-        if rank ==0:
+        # If no checkpoint directory is found at all
+        if rank == 0:
             print("No checkpoints found. Initializing new parameters.")
-        state_restored = abstract_state  # Initialize new state
-
-
+        state_restored = abstract_state
     # Merge graph definition with restored or initialized state
     model = nnx.merge(graphdef, state_restored)
 
@@ -127,7 +132,7 @@ def save_params(exp_name, model_name, generator, checkpointer, epoch=None):
     checkpointer.save(new_checkpoint_dir, state)
 
    
-def initialize_or_restore_ensemble(ensemble, model_name, rank, base_dir, seed):
+def initialize_or_restore_ensemble(ensemble, retrain, model_name, rank, base_dir, seed):
     n_model = ensemble.n_models
     checkpointers = []
 
@@ -135,6 +140,7 @@ def initialize_or_restore_ensemble(ensemble, model_name, rank, base_dir, seed):
         model_name_i = f"{model_name}/model_{i}"  # only model_name changes
         ensemble.models[i], checkpointer = initialize_or_restore_params(
             ensemble.models[i],
+            retrain,
             model_name_i,
             rank,
             base_dir=base_dir,  # base_dir stays same!

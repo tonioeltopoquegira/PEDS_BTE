@@ -21,6 +21,9 @@ def select_model(seed, model_type, **kwargs):
             activation=kwargs["activation"], 
             solver=kwargs["solver"],
             initialization=kwargs['initialization'],
+            uq_method=kwargs['uq_method'],
+            n_modes=kwargs['n_modes'],
+            hidden_sizes_uq=kwargs['hidden_sizes_uq'],
             seed=seed
         )
     elif model_type == "MLP":
@@ -37,17 +40,24 @@ def select_model(seed, model_type, **kwargs):
     
     elif model_type == "ENSEMBLE":
         
-        models = [PEDS(resolution=kwargs["resolution"], 
+        models = [PEDS(
+            resolution=kwargs["resolution"], 
             adapt_weights = kwargs["adapt_weights"],
             learn_residual=kwargs["learn_residual"], 
             hidden_sizes=kwargs["hidden_sizes"], 
             activation=kwargs["activation"], 
             solver=kwargs["solver"],
-            initialization=kwargs['initialization'], seed=seed+_) for _ in range(kwargs["n_models"])]
+            initialization=kwargs['initialization'],
+            uq_method=kwargs['uq_method'],
+            n_modes=kwargs['n_modes'],
+            hidden_sizes_uq=kwargs['hidden_sizes_uq'],
+            seed=seed+_)
+            for _ in range(kwargs["n_models"])]
 
         return ensemble(
             models = models,
             n_models=kwargs["n_models"],  # Default to 2 if not specified
+            uq_method=kwargs['uq_method']
         )
     
     elif model_type == "ENSEMBLE_MLP":
@@ -78,7 +88,7 @@ def predict(model, pores, training=False, **kwargs):
         kappa_mean = jnp.squeeze(model(pores_reshaped, True), -1)
     
     if isinstance(model, PEDS):
-        kappa_mean, conductivity_generated = model(pores, training)
+        kappa_mean, kappa_var, conductivity_generated = model(pores, training)
         if training:
             if ((kwargs.get('epoch', 0) + 1 + kwargs.get('n_past_epoch', 0)) % 25 == 0 or kwargs.get('epoch', 0) ==0) and kwargs.get('batch_n', 0) == 0 and kwargs.get('rank', 0) == 0:
                 plot_peds(model, pores, conductivity_res = conductivity_generated, model_name=kwargs.get('model_name'), exp_name=kwargs.get('exp_name'), epoch=kwargs.get('epoch') + 1 + kwargs.get('n_past_epoch'), kappa_predicted=kappa_mean, kappa_target=kwargs.get('kappas'))
@@ -157,3 +167,37 @@ def plot_peds(model, pores, conductivity_res, epoch, model_name, exp_name, kappa
     # Save the figure
     plt.savefig(f"experiments/{exp_name}/figures/peds_evolution/{model_name}/conductivities_epoch_{epoch}.png")
     plt.close()
+
+
+def plot_example(model, pores, k_true, epoch):
+
+    kappa_pred, kappa_var = predict(model, pores)
+
+    if kappa_var is not None and len(kappa_var.shape) > 1:
+        kappa_var = jnp.exp(kappa_var.transpose((1, 0)))
+
+    print(f"Real {k_true[13:16]}, Pred {kappa_pred[13:16]}, Var {kappa_var[13:16]}")
+
+
+    plt.figure(figsize=(8, 5))
+    plt.scatter(k_true, kappa_var, alpha=0.6, edgecolor='k')
+
+    plt.xlabel('Predicted kappa (mean)')
+    plt.ylabel('Predicted variance')
+    plt.title('Predicted Variance vs. Predicted kappa')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"experiments/earlystop/figures/variance_vs_kappa_{epoch}.png")
+    plt.close()
+
+    # Compute standard deviation from variance
+    std_dev = np.sqrt(kappa_var)  # shape (N,)
+
+    # Get indices of 10 most uncertain predictions
+    topk_idx = np.argsort(-std_dev)[:5]
+
+    # Print details
+    print("Top 5 most uncertain predictions:")
+    for i, idx in enumerate(topk_idx):
+        print(f"{i+1:2d}: μ = {kappa_pred[idx]:.4f}, σ = {std_dev[idx]:.4f}, GT = {k_true[idx]:.4f}, pores = {pores[idx]}")  # Adjusted to show pores
+
