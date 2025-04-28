@@ -6,7 +6,7 @@ import jax
 
 from solvers.low_fidelity_solvers.gauss_diffusion import gauss_solver
 from solvers.low_fidelity_solvers.fd_diffusion import fd_diffusion
-from solvers.low_fidelity_solvers.fourier import fourier_solver
+#from solvers.low_fidelity_solvers.fourier import fourier_solver
 
 class lowfid(nnx.Module):
    
@@ -23,8 +23,8 @@ class lowfid(nnx.Module):
             T = fd_diffusion(conductivity)
             kappas = flux_kappa(conductivity, T)
         
-        if self.solver == "fourier":
-            T, kappas = fourier_solver(conductivity)
+        #if self.solver == "fourier":
+        #    T, kappas = fourier_solver(conductivity)
             
         return kappas
     
