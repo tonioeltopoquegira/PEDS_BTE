@@ -7,3 +7,23 @@ To replicate the results duplicate the 'experiments' branch and then:
 
 A list of the experiments and model names can be found below, while the actual configurations can be found in config_experiments.py and config_model.py
 
+
+experiments = {
+  "1000_data": basic_1000_train, <- Basic experiment, 1000 training points, 100 test points
+  "100_data": dataeff_100_train, <- 100 training points, 100 test points
+  "200_data": dataeff_200_train, <- 200 training points, 100 test points
+  "500_data": dataeff_500_train, <- 500 training points, 100 test points
+  "earlystop": earlystop, <- Active learning for 100 size case
+}
+
+models = {
+  "peds_fourier": peds_fourier,
+  "peds_gauss": peds_gauss,
+  "mlpmod": mlpmod,
+  "peds_fourier_ens": peds_f_ens,
+  "peds_gauss_ens": peds_g_ens,
+  "peds_fourier_uq1": peds_f_ens_uq1,
+  "peds_gauss_uq1": peds_g_ens_uq1
+}
+
+Note that you can just run code with peds_gauss or peds_g models!! 
