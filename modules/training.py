@@ -170,7 +170,7 @@ def train_model(
         metrics["squared-val"][epoch] = squared_val
 
         # Check min
-        if (epoch+1)%100 == 0 and val_loss < val_min:
+        if (epoch+1)%500 == 0 and val_loss < val_min:
             val_min = val_loss
             save_parameters_wrap(exp_name, model_name, model_real, model, checkpointer, rank)
 

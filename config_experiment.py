@@ -4,7 +4,7 @@ basic_1000_train = {
 
     # Run
     "training": True,
-    "optimization": True,
+    "optimization": False,
     "stop_perc": [0.0],
 
     # Data
@@ -19,8 +19,8 @@ basic_1000_train = {
     "T": [100, 200, 300, 400, 500],
      
     # Training
-    "epochs": 1000,
-    "batch_size": 500,
+    "epochs": 10,
+    "batch_size": 250,
     "learn_rate_max": 5e-3,
     "learn_rate_min": 5e-4,
     "schedule": "cosine-cycles",

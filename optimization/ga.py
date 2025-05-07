@@ -140,16 +140,18 @@ def genetic_algorithm(model, target,stochastic, seed, var_param=1.0, n=25, pop_s
         kappas, vars = predict(model, batch)
 
         kappas = np.array(kappas)
-        vars = np.array(vars)
 
         mean_kappa = np.mean(kappas)
-        mean_var = np.mean(vars)
         mean_error = np.mean(np.abs(kappas - target))
 
         print(f"Generation {g}:")
         print(f"  Mean Prediction = {mean_kappa:.4f}")
         print(f"  Mean Absolute Error = {mean_error:.4f}")
-        print(f"  Mean Variance = {mean_var:.4f}")
+
+        if stochastic:
+            vars = np.array(vars)
+            mean_var = np.mean(vars)
+            print(f"  Mean Variance = {mean_var:.4f}")
     
     #hof_array = geom.strip("\"").strip("[]")  # Remove quotes and brackets
     #hof_array = np.array([int(x) for x in hof_array.split(", ")]) 

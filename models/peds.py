@@ -51,13 +51,6 @@ class PEDS(nnx.Module):
                 pde_solver=self.lowfidsolver,
                 rngs=key
             )
-        # CANCEL THIS AFTER TESTING
-        self.lowrankpce = lowrankpce(
-                hidden_sizes=hidden_sizes_uq,
-                n_modes=n_modes,
-                pde_solver=self.lowfidsolver,
-                rngs=key
-            )
     
     def __call__(self, pores, training=False):
         batch_size = pores.shape[0]
