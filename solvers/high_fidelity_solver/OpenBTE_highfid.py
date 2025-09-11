@@ -24,9 +24,11 @@ def highfidelity_solver(pores, step_size, save_show_res = False):
     mesh.add_shape(rectangle(area = L*L))
 
     # Pores
-    pores_centers = convert_pores(pores)
-    for pore in pores_centers:
-        mesh.add_hole(rectangle(area = 100,x=pore[0],y=pore[1]))
+    pores_info = convert_pores(pores)
+    '''for area, x, y in pores_info:
+        mesh.add_hole(rectangle(area=area, x=x, y=y))'''
+    for x, y in pores_info:
+        mesh.add_hole(rectangle(area=100, x=x, y=y))
 
     # Set Boundary conditions
     if pores.any():
@@ -62,7 +64,10 @@ def highfidelity_solver(pores, step_size, save_show_res = False):
 
     results = OpenBTEResults(mesh=mesh,material = mat,solvers={'bte':bte})
     
+    
+    
     results.save()
+
 
 
     results = OpenBTEResults.load()
@@ -76,7 +81,10 @@ def highfidelity_solver(pores, step_size, save_show_res = False):
 
     # Possibly need to integrate the flux of Fourier 
 
-    return kappa_eff_BTE, temp_BTE, flux_BTE
+    
+    results.show(include=["Temperature_BTE", "Flux_BTE"])
+
+    return kappa_eff_BTE, temp_BTE, flux_BTE, mesh
 
 
 def convert_pores(pores):
@@ -93,66 +101,104 @@ def convert_pores(pores):
     
     return pores_centers
 
+def convert_pores_new(pores):
+    """
+    Convert matrix of integers into pore positions with areas.
+    Each non-zero entry becomes a pore, and its area is the square of the value.
+    """
+    indices = np.argwhere(pores)
+    indices = indices[:, [1, 0]]  # switch x and y axis
+    
+    pores_with_area = []
+    for idx in indices:
+        x, y = idx
+        value = pores[y, x]
+        if value > 0:
+            area = float(value) ** 2
+            center_x, center_y = (x * -20) + 40, (y * -20) + 40
+            pores_with_area.append((area, -center_x, center_y))  # flip x to match your convention
+    
+    return pores_with_area
 
-if  __name__ == "__main__":
 
+
+if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    import matplotlib.colors as mcolors
+    import numpy as np
+    import matplotlib.tri as tri
 
-    #pores = np.array([0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1])
-    pores = np.zeros(25)
-    pores = pores.reshape((5,5))
+    # --- run solver (ensure highfidelity_solver returns mesh along with kappa,temp,flux) ---
+    pores = np.array(
+        [1, 1, 0, 1, 1,
+         1, 0, 0, 1, 1,
+         0, 0, 0, 1, 0,
+         0, 1, 1, 0, 0,
+         1, 0, 0, 1, 1]
+    ).reshape((1, 5, 5))
 
-    results = highfidelity_solver(pores, step_size= 2.0, save_show_res=False)
+    # make sure your solver returns mesh as 4th item:
+    # return kappa_eff_BTE, temp_BTE, flux_BTE, mesh
+    kappa, temp, flux, mesh = highfidelity_solver(pores, step_size=5.0, save_show_res=True)
 
-    kappa, temp, flux = results
+    print("Kappa:", kappa)
+    print("temp shape:", np.asarray(temp).shape)
+    print("flux shape:", np.asarray(flux).shape)
+    print("mesh.nodes shape:", np.asarray(mesh.nodes).shape)
+    print("mesh.elems shape:", np.asarray(mesh.elems).shape)
 
-    print(flux.shape)
+    # --- plotting function (same as before) ---
+    def plot_temperature_unstructured(Temperatures, mesh, *,
+                                  use_column=0,
+                                  avg_columns=False,
+                                  n_contour_levels=50,
+                                  n_isoline_levels=20,
+                                  mask_pores=True,
+                                  cmap="viridis",
+                                  fmt_isoline="%.1f",
+                                  savepath=None):
 
-    def plot_temperature(Temperatures, base_conductivities, index=0):
-            cmap = plt.cm.viridis
-            norm = mcolors.Normalize(vmin=Temperatures[index].min(), vmax=Temperatures[index].max())
-            
-            threshold = np.min(base_conductivities[:3]) + 0.01
-            masked_T = np.ma.masked_where(base_conductivities[index] < threshold, Temperatures[index])
+        z = np.asarray(Temperatures)
 
-            plt.figure(figsize=(6, 5))
-            im = plt.imshow(masked_T, cmap=cmap, norm=norm, interpolation='nearest')
-            plt.colorbar(im, label='Temperature')
-            plt.contour(masked_T, levels=np.linspace(Temperatures[index].min(), Temperatures[index].max(), 25), 
-                        colors='white', linewidths=0.5)
-            
-            plt.title(f'Heatmap of T (Index {index}) with Level Sets')
-            plt.xlabel('x direction')
-            plt.ylabel('y direction')
+        points = np.asarray(mesh.nodes)     # (n_nodes, 2)
+        triangles = np.asarray(mesh.elems)  # (n_triangles, 3)
+        x, y = points[:, 0], points[:, 1]
+
+        # 🔥 Fix: if z is per-element, average values to nodes
+        if z.shape[0] == triangles.shape[0] and z.shape[0] != points.shape[0]:
+            print("Detected element-centered field; converting to node-centered.")
+            z_node = np.zeros(points.shape[0])
+            counts = np.zeros(points.shape[0])
+            for tri, val in zip(triangles, z):
+                for node in tri:
+                    z_node[node] += val
+                    counts[node] += 1
+            z = z_node / counts
+        elif z.shape[0] != points.shape[0]:
+            raise ValueError(f"Length mismatch after check: field len {z.shape[0]} vs mesh nodes {points.shape[0]}")
+
+        triang = tri.Triangulation(x, y, triangles)
+
+        # --- Plot ---
+        plt.figure(figsize=(6, 5))
+        tpc = plt.tricontourf(triang, z, levels=n_contour_levels, cmap=cmap)
+        cb = plt.colorbar(tpc, label="Temperature")
+        cs = plt.tricontour(triang, z, levels=n_isoline_levels, colors="white", linewidths=0.7)
+        plt.clabel(cs, inline=True, fmt=fmt_isoline, fontsize=8)
+
+        plt.title("Temperature (BTE) on unstructured mesh")
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.gca().set_aspect("equal")
+        plt.tight_layout()
+
+        if savepath:
+            plt.savefig(savepath, dpi=300)
+            print(f"Saved temperature plot → {savepath}")
+        else:
             plt.show()
 
 
-    import pandas as pd
-
-
-    """model_name = "PEDS_gauss"
-
-    results = pd.read_csv(f"data/optimization/{model_name}/evolutionary_geometries.csv")
-    result_new = pd.DataFrame(columns=["kappa_target", "geometries", "kappa_BTE"])
-
-    kappa_BTE = []
-
-    for geom, k in zip(results['geometries'], results['kappa_target']):
-
-        # Convert to list of integers
-        hof_array = geom.strip("\"").strip("[]")  # Remove quotes and brackets
-        hof_array = np.array([int(x) for x in hof_array.split(", ")]) 
-
-        pores = hof_array.reshape((5,5))
-    
-        results = highfidelity_solver(pores, save_show_res=False)
-
-        kappa, _, _ = results
-
-        print(k)
-
-        result_new = result_new._append({"kappa_target":k, "geometries":geom, "kappa_BTE":kappa}, ignore_index=True)
-    
-    result_new.to_csv(f"data/optimization/{model_name}/evolutionary_geometries_withBTE.csv", index=False)
-"""
+    # --- call plotting ---
+    # Use the temperature field returned by solver (not flux). If solver temp is in solver.variables dict,
+    # ensure you pass the correct array. Here we assume `temp` is the scalar field.
+    plot_temperature_unstructured(temp, mesh, savepath="figures/paper/temp_bte.png")

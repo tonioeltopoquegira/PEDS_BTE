@@ -170,10 +170,9 @@ def train_model(
         metrics["squared-val"][epoch] = squared_val
 
         # Check min
-        if (epoch+1)%500 == 0 and val_loss < val_min:
+        '''if (epoch+1)% 500 == 0 and val_loss < val_min:
             val_min = val_loss
-            save_parameters_wrap(exp_name, model_name, model_real, model, checkpointer, rank)
-
+            save_parameters_wrap(exp_name, model_name, model_real, model, checkpointer, rank)'''
         # Log the training progress for each epoch
         log_progress(
             loss_type, model_real, model, model_id, rank, epoch, n_past_epoch, epochs,
@@ -193,16 +192,18 @@ def train_model(
             if stop_perc == []:
                 achieved = True
 
-        if epoch % 50 == 0:
+        if epoch % 25 == 0:
             jax.clear_caches()
-
     
     plot_update_learning_curves(exp_name, model_name, n_past_epoch, epoch, metrics)
 
-    if metrics["val_loss"][-1] < val_min:
-        save_parameters_wrap(exp_name, model_name, model_real, model, checkpointer, rank)
+    save_parameters_wrap(exp_name, model_name, model_real, model, checkpointer, rank)
 
-    return model_real, metrics["mse"][-1].item(), metrics["val_mse"][-1].item(), metrics['val_fract_error'][-1].item()
+    mse_train, mse_val, perc_error_val = metrics["mse"][-1].item(), metrics["val_mse"][-1].item(), metrics['val_fract_error'][-1].item()
+
+    
+
+    return model_real, mse_train, mse_val, perc_error_val 
 
 
 
@@ -251,6 +252,10 @@ def save_parameters_wrap(exp_name, model_name, model_real, model, checkpointer, 
     elif not isinstance(model_real, ensemble) and rank == 0:
         save_params(exp_name, model_name, model, checkpointer)
         checkpointer.wait_until_finished()  # <-- important!
+    
+
+    time.sleep(15)
+
 
 def log_progress(loss_type, model_real, model, model_id, rank, epoch, n_past_epoch, epochs, metrics, epoch_time, comm, dataset_val, size, n_models):
 
@@ -268,11 +273,11 @@ def log_progress(loss_type, model_real, model, model_id, rank, epoch, n_past_epo
     squared_val = metrics["squared-val"][epoch]
 
     if isinstance(model_real, ensemble):
-            log_training_progress(loss_type, model_id, epoch, n_past_epoch, epochs,
-                         train_loss, val_loss, fract_perc_loss, epoch_time,
-                          mse, val_mse,
-                          log_var_loss, log_var_val,
-                          squared_error, squared_val)
+        log_training_progress(loss_type, model_id, epoch, n_past_epoch, epochs,
+                        train_loss, val_loss, fract_perc_loss, epoch_time,
+                        mse, val_mse,
+                        log_var_loss, log_var_val,
+                        squared_error, squared_val)
             
     elif rank % (size // n_models) == 0:
         log_training_progress(loss_type, model_id, epoch, n_past_epoch, epochs,
@@ -281,6 +286,4 @@ def log_progress(loss_type, model_real, model, model_id, rank, epoch, n_past_epo
                           log_var_loss, log_var_val,
                           squared_error, squared_val)
 
-    if isinstance(model_real, ensemble):
-        pass
-        #avg_val_loss, total_loss_perc = valid_ensemble(epoch, comm, dataset_val, model)
+    

@@ -74,6 +74,8 @@ def select_model(seed, model_type, **kwargs):
         return ensemble(
             models = models,
             n_models=kwargs["n_models"],  # Default to 2 if not specified
+            uq_method=kwargs['uq_method'],
+            which_model="mlp"
         )
 
 

@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 import argparse
@@ -9,7 +10,7 @@ def run_optimization(exp_name, model_name, optimizer):
     result_new = pd.DataFrame(columns=["kappa_target", "kappa_optimized", "error_optimization", "geometry", "kappa_BTE", "error_model"])
 
     for _, res in results.iterrows():
-        k, k_opt, error_opt, _, geom = res
+        k, k_opt, error_opt, _, _, geom = res
 
         # Convert to list of integers
         design = geom.strip("\"").strip("[]")  # Remove quotes and brackets
@@ -40,17 +41,28 @@ def run_optimization(exp_name, model_name, optimizer):
         }, ignore_index=True)
 
     # Save updated results
-    result_new.to_csv(f"experiments/{exp_name}/optimizations/{optimizer}_{model_name}_withBTE.csv", index=False)
+    result_new.to_csv(f"experiments/{exp_name}/optimization/{optimizer}_{model_name}_withBTE.csv", index=False)
     print(f"Optimization results saved to experiments/{exp_name}/optimizations/{optimizer}_{model_name}_withBTE.csv")
 
 if __name__ == "__main__":
-
-    exp_name = "train_1000"
-
-    model_names = ["peds_mixed_smaller", "peds_mixed_smaller1", "peds_mixed_smaller2", "peds_mixed_smaller3", "peds_mixed_smaller4",
-                    "mlp", "mlp1", "mlp2", "mlp3", "mlp4"]
-
+    
+    exp_name = "train_1000_NEW"  # Change this as needed
     optimizer = "ga"
-    for m in model_names:
-        run_optimization(exp_name, m, optimizer)
 
+    optimization_path = f"experiments/{exp_name}/optimization"
+    model_names = []
+
+    # Collect only original optimization files
+    for file in os.listdir(optimization_path):
+        if (
+            file.startswith(f"{optimizer}_") 
+            and file.endswith(".csv") 
+            and "_withBTE" not in file
+        ):
+            model_name = file[len(optimizer) + 1:-4]
+            model_names.append(model_name)
+
+    print(f"Found models: {model_names}")
+
+    for model in model_names:
+        run_optimization(exp_name, model, optimizer)

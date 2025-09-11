@@ -17,7 +17,7 @@ def prng_key_to_int(key):
     """Convert a JAX PRNGKey to an integer."""
     return int(jax.random.randint(key, (), 0, 2*10))  # Convert to a sa
 
-def genetic_algorithm(model, target,stochastic, seed, var_param=1.0, n=25, pop_size=100, generations=40, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05, debug=True):
+def genetic_algorithm(model, target,stochastic, seed, var_param=0.1, n=25, pop_size=175, generations=60, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05, debug=True):
     """
     Runs a genetic algorithm to optimize a design given a model and a target value.
     
@@ -159,12 +159,14 @@ def genetic_algorithm(model, target,stochastic, seed, var_param=1.0, n=25, pop_s
     hof_list = hof[0].tolist()
     hof_array = np.array(hof_list)
 
-    if isinstance(model, PEDS) or isinstance(model, ensemble):
+    """if isinstance(model, PEDS) or isinstance(model, ensemble) or isinstance(model, ensemble_mlp):
         hof_array_resh = hof_array.reshape((1,5,5))
         k_pred, variance = model(hof_array_resh)
     else:
         hof_array_resh = hof_array.reshape((1,25))
-        k_pred = model(hof_array_resh)
+        k_pred = model(hof_array_resh)"""
+    
+    k_pred, variance = predict(model, hof_array.reshape((1,25)) )
     
     
     return hof_array, k_pred, variance

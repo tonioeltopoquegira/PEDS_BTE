@@ -4,13 +4,14 @@ import os
 
 from optimization.ga import genetic_algorithm
 from optimization.gradient import gradient_opt
+from optimization.heaviside_grad import gradient_opt_heaviside
 
 #from ga import genetic_algorithm
 #from gradient import gradient_opt
 
 
 
-def optimize(exp_name, model_name, model, opt, kappas, stochastic, seed):
+def optimize(exp_config, exp_name, model_name, model, opt, kappas, stochastic, seed):
 
     print(f"Start Optimization with {opt} for {kappas}... \n")
 
@@ -25,14 +26,14 @@ def optimize(exp_name, model_name, model, opt, kappas, stochastic, seed):
     else:
         results = pd.DataFrame(columns=["kappa_target", "kappa_optimized", "error_optimization", "geometry"])
 
-    optimizer = choose_optimizer(opt)
+    optimizer = choose_optimizer(opt, exp_config)
 
     for k in kappas:
 
         design, kappa_optimized, var_optimized = optimizer(model, k, stochastic, seed)
 
         if var_optimized is None:
-            var_optimized= 9999.0
+            var_optimized= np.array([9999.0])
 
         print(f"Optimized for {k}: found {kappa_optimized} w/ {var_optimized} for {design}")
 
@@ -44,15 +45,19 @@ def optimize(exp_name, model_name, model, opt, kappas, stochastic, seed):
 
     print("Optimizations completed.")
 
+    return results
 
-def choose_optimizer(opt):
+
+def choose_optimizer(opt, exp_config):
 
     if opt == "ga":
-        return lambda model, k, stochastic, seed: genetic_algorithm(model, k, stochastic, seed,  n=25, pop_size=500, generations=60, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05)
+        return lambda model, k, stochastic, seed: genetic_algorithm(model, k, stochastic, seed,  n=25, pop_size=175, generations=60, cxpb=0.5, mutpb=0.2, tournsize=3, indpb=0.05)
     
     if opt == "grad":
         return lambda model, k, stochastic, seed: gradient_opt(model, k, stochastic, seed, steps=100, lr=0.1)
     
+    if opt == "grad-heav":
+        return lambda model, k, stochastic, seed: gradient_opt_heaviside(model, k, seed, min_var=stochastic, beta_start=exp_config['beta_start'], beta_increase=exp_config['beta_increase'], lr=exp_config['lr'], beta_int=exp_config['beta_int'])
     else:
         print("Unrecognized optimization method")
         pass

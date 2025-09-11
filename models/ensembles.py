@@ -4,19 +4,28 @@ import jax.numpy as jnp
 
 class ensemble:
     def __init__(self, models:list,
-                n_models: int, uq_method: int):
+                n_models: int, uq_method: int,
+                which_model: str = "peds"):
         
         self.models = models
         self.n_models = n_models
         self.uq_method = uq_method
+        self.which_model = which_model
     
     def __call__(self, x, training=False):
-        outputs = [model(x, training)[0] for model in self.models]
+
+        if self.which_model == "peds":
+       
+            outputs = [model(x, training)[0] for model in self.models]
+        
+        else:
+            outputs = [model(x, training) for model in self.models]
+
         variances = [model(x, training)[1] for model in self.models]
         
         
         ensemble_mean = jnp.mean(jnp.stack(outputs), axis=0)
-
+        
         if self.uq_method == 0:
             ensemble_var = jnp.var(jnp.stack(outputs), axis=0)
         

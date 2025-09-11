@@ -1,0 +1,4 @@
+model_name,mse_train,mse_val,val_perc_error,overall_test_perc_error,test_perc_error_<15,test_perc_error_15-40,test_perc_error_>40,test_perc_error_Q1,test_perc_error_Q2,test_perc_error_Q3,test_perc_error_Q4
+mlp_ens,0.462205,33.102718,11.2566,42.1977,21.0651,23.5597,40.1978,10.9537,9.6128,15.9195,50.1628
+mlp_ens,0.462205,33.102718,11.2566,42.1977,21.0651,23.5597,40.1978,10.9537,9.6128,15.9195,50.1628
+mlp_ens,0.095039,30.457859,10.5475,39.2497,7.5718,24.6728,37.0129,11.0431,10.3111,13.6073,42.4004

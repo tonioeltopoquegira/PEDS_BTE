@@ -6,7 +6,32 @@ mlpmod = {
     "model": "MLP",
 
     # NN parameters
-    "hidden_sizes": [32, 32, 32],
+    "hidden_sizes": [32, 64, 64],
+    "activation": "mixed", 
+    "initialization": "xavier",
+
+    # PEDS parameters
+    "resolution": 5,
+    "adapt_weights": True,
+    "learn_residual": True,
+    "solver": "fourier",
+
+    # UQ
+    "uq_method": 0, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32],
+    "n_modes": 2,
+    "n_models": 4
+}
+
+mlp_ens_uq1 = {
+    # Model name and type
+    "model_name": "mlp_ens",
+    "model": "ENSEMBLE_MLP",
+
+    # NN parameters
+    "hidden_sizes": [32, 64, 64],
     "activation": "mixed", 
     "initialization": "xavier",
 
@@ -33,7 +58,7 @@ peds_fourier = {
     "model": "PEDS",
 
     # NN parameters
-    "hidden_sizes": [32, 32],
+    "hidden_sizes": [64, 64],
     "activation": "mixed", 
     "initialization": "xavier",
 
@@ -47,7 +72,88 @@ peds_fourier = {
     "uq_method": 0, 
     
     # UQ parameters
-    "hidden_sizes_uq": [32, 32], # 32 for best model
+    "hidden_sizes_uq": [32, 32],
+    "n_modes": 1,
+    "n_models": 4
+
+}
+
+peds_fourier_1 = {
+
+    # Model name and type
+    "model_name": "peds_fourier_1",
+    "model": "PEDS",
+
+    # NN parameters
+    "hidden_sizes": [32, 32, 32],
+    "activation": "mixed", 
+    "initialization": "xavier",
+
+    # PEDS parameters
+    "resolution": 5,
+    "adapt_weights": True,
+    "learn_residual": True,
+    "solver": "fourier",
+
+    # UQ
+    "uq_method": 0, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32],
+    "n_modes": 1,
+    "n_models": 4
+
+}
+
+peds_fourier_2 = {
+
+    # Model name and type
+    "model_name": "peds_fourier_2",
+    "model": "PEDS",
+
+    # NN parameters
+    "hidden_sizes": [64, 64],
+    "activation": "mixed", 
+    "initialization": "xavier",
+
+    # PEDS parameters
+    "resolution": 5,
+    "adapt_weights": True,
+    "learn_residual": True,
+    "solver": "fourier",
+
+    # UQ
+    "uq_method": 0, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32],
+    "n_modes": 1,
+    "n_models": 4
+
+}
+
+peds_fourier_bigger = {
+
+    # Model name and type
+    "model_name": "peds_fourier_bigger_final_ens",
+    "model": "ENSEMBLE",
+
+    # NN parameters
+    "hidden_sizes": [32, 32, 32],
+    "activation": "mixed", 
+    "initialization": "xavier",
+
+    # PEDS parameters
+    "resolution": 5,
+    "adapt_weights": True,
+    "learn_residual": True,
+    "solver": "fourier",
+
+    # UQ
+    "uq_method": 0, 
+    
+    # UQ parameters
+    "hidden_sizes_uq": [32, 32],
     "n_modes": 1,
     "n_models": 4
 
@@ -143,7 +249,7 @@ peds_f_ens_uq1 = {
     "model": "ENSEMBLE",
 
     # NN parameters
-    "hidden_sizes": [32, 32],
+    "hidden_sizes": [64, 64],
     "activation": "mixed", 
     "initialization": "xavier",
 
@@ -170,7 +276,7 @@ peds_g_ens_uq1 = {
     "model": "ENSEMBLE",
 
     # NN parameters
-    "hidden_sizes": [32, 32],
+    "hidden_sizes": [64, 64],
     "activation": "mixed", 
     "initialization": "xavier",
 

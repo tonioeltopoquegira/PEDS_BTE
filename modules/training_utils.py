@@ -346,7 +346,7 @@ def log_training_progress(loss_type, model_id, epoch, n_past_epoch, epochs,
                           squared_loss=None, squared_loss_test=None):
     extras = []
 
-    if (epoch + 1) % 10 == 0:
+    if (epoch + 1) % 25 == 0:
         if loss_type == 0:
             epoch_info = f"M{model_id} | Epoch {epoch + 1 + n_past_epoch}/{epochs + n_past_epoch}"
             loss_info = f"TrainMSE: {avg_loss:.2f}, ValMSE: {avg_val_loss:.2f}, FractError {total_loss_perc:.2f}%"

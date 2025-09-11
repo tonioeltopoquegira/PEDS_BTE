@@ -49,32 +49,145 @@ def fourier_solver(conductivity):
 
 if __name__ == "__main__":
 
-    from utilities_lowfid import test_solver
-    test_solver(fourier_solver, num_obs=100, name_solver='fourier', fd_check=True)
+    #from utilities_lowfid import test_solver
+    import jax.numpy as jnp
+    import matplotlib.pyplot as plt
+    #test_solver(fourier_solver, num_obs=100, name_solver='fourier', fd_check=True)
 
-    """N = 100
-    conductivity = 160.0 * jnp.ones((2, N, N))
-   
-    T, kappa = fourier_solver(conductivity)
-    T = T[0, :]
-    # Plot the heatmap
-    plt.figure(figsize=(6, 5))  # Set figure size
-    plt.imshow(T, cmap='viridis', origin='lower', extent=[0, N, 0, N])
-    plt.colorbar(label="Temperature")  # Add color bar
-    plt.xlabel("X-axis")
-    plt.ylabel("Y-axis")
-    plt.title("Temperature Distribution")
-    plt.show()
+ 
 
+    # Load data
+    full_data = jnp.load("data/highfidelity/high_fidelity_2_20000.npz", allow_pickle=True)
+    pores = jnp.asarray(full_data['pores'], dtype=jnp.float32)
+    kappas = jnp.asarray(full_data['kappas'], dtype=jnp.float32).flatten()
 
+    # Define 100 target kappa values linearly spaced
+    kappa_min, kappa_max = jnp.min(kappas), jnp.max(kappas)
+    target_kappas = jnp.linspace(kappa_min, kappa_max, num=500)
+
+    def find_unique_closest_indices(kappas, targets):
+        selected = set()
+        indices = []
+        for t in targets:
+            idx = int(jnp.argmin(jnp.abs(kappas - t)))
+            if idx not in selected:
+                selected.add(idx)
+                indices.append(idx)
+        return jnp.array(indices)
+
+    selected_indices = find_unique_closest_indices(kappas, target_kappas)
+
+    # Get corresponding pores and true kappas
+    selected_pores = pores[selected_indices]
+    selected_kappas = kappas[selected_indices]
+
+    print(selected_kappas)
+
+    # Reshape for solver
+    selected_pores = selected_pores.reshape((selected_pores.shape[0], 5, 5))
+    print(selected_pores.shape)
+
+    from base_conductivity_grid_converter import conductivity_original_wrapper
+
+    grids = conductivity_original_wrapper(selected_pores, 100)
 
     
+    # Run solver
+    T, kappa_fourier = fourier_solver(grids)
 
-    # Print results
-    print("Computed kappa_effective:\n", kappa)"""
+    
+    # Example: plot the first design
+    print(kappa_fourier)
+    kappa_fourier = kappa_fourier.flatten()
 
+    # Compute errors
+    abs_error = jnp.abs(kappa_fourier - selected_kappas)
+    percent_error = 100 * (kappa_fourier - selected_kappas) / selected_kappas
 
+    # Print summary
+    print(f"Mean Absolute Error: {jnp.mean(abs_error):.4f}")
+    print(f"Mean Percentage Error: {jnp.mean(percent_error):.2f}%")
 
+    # Plot 1: Percentage error vs BTE kappas
+    plt.figure(figsize=(5, 5))
+    plt.plot(selected_kappas, percent_error, marker='o', linestyle='-', color='black')
+    plt.xlabel("Kappa BTE", fontsize=16)
+    plt.ylabel("Fractional Error (%)", fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.grid(False)
+    plt.tight_layout()
+   
+    plt.savefig('figures/paper/fract_error_fourier.png')
 
+    # Plot 2: Scatter plot kappa_Fourier vs kappa_BTE
+    plt.figure(figsize=(5, 5))
+    plt.scatter(selected_kappas, kappa_fourier, color='blue', edgecolor='k')
 
+    # Add x=y reference line
+    min_val = min(jnp.min(selected_kappas), jnp.min(kappa_fourier))
+    max_val = max(jnp.max(selected_kappas), jnp.max(kappa_fourier))
+    plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2)
+
+    plt.xlabel("Kappa BTE", fontsize=16)
+    plt.ylabel("Kappa Fourier", fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.grid(False)
+    plt.tight_layout()
+    plt.legend(fontsize=14)
+    
+    plt.savefig('figures/paper/kappa_btevsfourier.png')
+
+    # -----------------------------------------------------------
+    # Custom geometry visualization with Fourier solver
+    # -----------------------------------------------------------
+    import numpy as np
+    import matplotlib.colors as mcolors
+
+    # Define your own pore geometry (example: same 5x5 as in HF example)
+    pores_custom = np.array(
+        [1, 1, 0, 1, 1,
+        1, 0, 0, 1, 1,
+        0, 0, 0, 1, 0,
+        0, 1, 1, 0, 0,
+        1, 0, 0, 1, 1]
+    ).reshape((5, 5))
+
+    # Convert to conductivity grid
+    from base_conductivity_grid_converter import conductivity_original_wrapper
+    grid_custom = conductivity_original_wrapper(pores_custom[None, :, :], 100)  # add batch dim
+
+    # Run Fourier solver
+    T_custom, kappa_custom = fourier_solver(grid_custom)
+
+    print("Custom geometry effective kappa:", kappa_custom)
+
+    # Plotting function
+    def plot_temperature_fourier(Temperatures, base_conductivities, index=0):
+        cmap = plt.cm.viridis
+        norm = mcolors.Normalize(vmin=Temperatures[index].min(), vmax=Temperatures[index].max())
+
+        # Mask pores (low conductivity zones)
+        threshold = np.min(base_conductivities[index]) + 1e-6
+        masked_T = np.ma.masked_where(base_conductivities[index] < threshold, Temperatures[index])
+
+        plt.figure(figsize=(6, 5))
+        im = plt.imshow(masked_T, cmap=cmap, norm=norm, interpolation="nearest")
+        plt.colorbar(im, label="Temperature")
+        plt.contour(
+            masked_T,
+            levels=np.linspace(Temperatures[index].min(), Temperatures[index].max(), 25),
+            colors="white",
+            linewidths=0.5,
+        )
+
+        plt.title(f"Heatmap of T (Index {index}) with Level Sets (Fourier)")
+        plt.xlabel("x direction")
+        plt.ylabel("y direction")
+        plt.tight_layout()
+        plt.show()
+
+    # Plot the temperature solution for the custom geometry
+    plot_temperature_fourier(T_custom, grid_custom, index=0)
 

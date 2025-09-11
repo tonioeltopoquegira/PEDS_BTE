@@ -45,11 +45,20 @@ def optimized_conductivity_grid_jax(pores, N):
 
 #nnx.jit(fun=optimized_conductivity_grid_jax, static_argnums=(1,2,3,4,5))
 
-def conductivity_grid_5by5(pores):
-    return jnp.reshape(jnp.where(pores, 1e-7, 160), (pores.shape[0], 5, 5))
+def conductivity_grid_5by5(pores, binary=False):
+    if binary:
+        
+        result = jnp.where(pores, 1e-7, 160)
+    else:
+        
+        result = 160 * (1 - pores)
+        #
+        result = jnp.clip(result, 1e-7, 160)
+
+    return jnp.reshape(result, (pores.shape[0], 5, 5))
 
    
-def conductivity_original_wrapper(pores, N):
+def conductivity_original_wrapper(pores, N, binary=False):
 
     if N >= 20:
 
@@ -62,7 +71,7 @@ def conductivity_original_wrapper(pores, N):
 
     if N ==5:
 
-        return conductivity_grid_5by5(pores)
+        return conductivity_grid_5by5(pores, binary=binary)
     
 
 if __name__ == "__main__":

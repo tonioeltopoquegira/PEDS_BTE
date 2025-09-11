@@ -1,15 +1,17 @@
 import jax
-import jax.numpy as jnp
+#import jax.numpy as jnp
 import numpy as np
 import os
 from OpenBTE_highfid import highfidelity_solver
 import re
+#import multiprocessing as mp
+#mp.set_start_method("spawn", force=True)
 
 
 # make it such that the results only store pores and kappas. With stores in a single 1D array and kappa a float
 
 # Number of data points to generate
-num_data_points = 1500
+num_data_points = 5000
 step_size = 2
 perc = 0.5
 
@@ -19,7 +21,7 @@ results = {'pores': [], 'kappas': []}
 save_dir = "./data/highfidelity"
 os.makedirs(save_dir, exist_ok=True)
 # Regex pattern to find files with the naming convention "high_fidelity_#.npz"
-pattern = re.compile(f"high_fidelity_{step_size}_(\d+)\.npz")
+pattern = re.compile(f"high_fidelity_NEW_{step_size}_(\d+)\.npz")
 
 # Find the file with the highest numerical value in its name
 def get_highest_value_file(directory, pattern):
@@ -51,7 +53,7 @@ for i in range(len(existing_results['pores']), len(existing_results['pores']) + 
     key = jax.random.PRNGKey(i + existing_count)
     
     # Generate pores as a 2D boolean array, then convert to int
-    pores = (jax.random.uniform(key, (5, 5)) < perc).astype(int)
+    pores = jax.random.uniform(key, (5, 5), minval=0.0, maxval=20.0)
 
 
     # Run high fidelity solver with 2D `pores`
@@ -74,7 +76,7 @@ if any(results.values()):
         existing_results[key].extend(results[key])
     
     # Save the data with the new filename
-    filename = os.path.join(save_dir, f"high_fidelity_{step_size}_{existing_count+num_data_points}.npz")
+    filename = os.path.join(save_dir, f"high_fidelity_NEW_{step_size}_{existing_count+num_data_points}.npz")
     np.savez(filename, **{k: np.array(v, dtype=object) for k, v in existing_results.items()})
 
 # Load and print the final saved data

@@ -64,7 +64,7 @@ class PEDS(nnx.Module):
 
         if self.learn_residual:
 
-            conductivities = conductivity_original_wrapper(pores, self.resolution)
+            conductivities = conductivity_original_wrapper(pores, self.resolution, binary=False)
 
             if self.adapt_weights:
                 w = nnx.jit(self.wnn, static_argnames=("training",))(pores, training)
