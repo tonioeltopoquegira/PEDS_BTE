@@ -6,22 +6,19 @@ cycler==0.12.1
 deap==1.4.2
 equinox==0.12.1
 etils==1.12.2
-flax==0.10.5
+flax==0.10.3
 fonttools==4.57.0
 fsspec==2025.3.2
 gdspy==1.6.13
 humanize==4.12.2
 imageio==2.37.0
 importlib_resources==6.5.2
-jax==0.5.0
-jaxlib==0.5.0
-jaxtyping==0.3.1
+jax==0.4.38
 kiwisolver==1.4.8
 lazy_loader==0.4
 lineax==0.0.8
 llvmlite==0.44.0
 markdown-it-py==3.0.0
--e git+https://github.com/MatInverse/MatInverse.git@d43107cb932435a72bd49c07ba7b9a9a7cfcc2d4#egg=matinverse
 matplotlib==3.10.1
 mdurl==0.1.2
 ml_dtypes==0.5.1

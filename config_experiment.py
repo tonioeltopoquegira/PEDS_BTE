@@ -9,7 +9,7 @@ basic_1000_train = {
 
     # Data
     "train_size": 1000, # change to train, test, validation
-    "test_size": 100,
+    "test_size": 1000,
 
     # Active Learning
     "al": False,
