@@ -241,8 +241,16 @@ def diffusion_expert(params, N):
     
 
 if __name__ == "__main__":
-
-
-    kappa = diffusion_expert(jnp.ones((1000,25)), N=100)
+    import time
+    t = time.time()
+    n_evals = 1000
+    kappa = diffusion_expert(jnp.ones((n_evals,25)), N=100)
 
     print("Kappa:", kappa)
+    print(f"(1) Time taken for {n_evals}:", time.time() - t)
+    t = time.time()
+    kappa = diffusion_expert(jnp.ones((n_evals,25)), N=100)
+    print(f"(2) Time taken for {n_evals}:", time.time() - t)
+    t = time.time()
+    kappa = diffusion_expert(jnp.ones((n_evals,25)), N=100)
+    print(f"(3) Time taken for {n_evals}:", time.time() - t)

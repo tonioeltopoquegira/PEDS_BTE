@@ -4,9 +4,9 @@
   "n_selected": 269,
   "n_generated": 269,
   "quantitative": {
-    "mse": 27.861742115820043,
-    "rmse": 5.278422313136762,
-    "mae": 3.1129088442569226
+    "mse": 27.861742054648918,
+    "rmse": 5.27842230734231,
+    "mae": 3.1129088513474383
   },
   "pca_generated_explained_variance_ratio": [
     0.8986234664916992,
@@ -37,5 +37,5 @@
     "tsne_pores_26d": "figures/ablation_train_1000_NEW_peds_fourier/tsne_pores_26d_with_w.png",
     "qualitative": "figures/ablation_train_1000_NEW_peds_fourier/example_generated_conductivities.png"
   },
-  "timestamp": "2025-11-18T10:25:37.749026"
+  "timestamp": "2025-11-18T10:46:55.359217"
 }

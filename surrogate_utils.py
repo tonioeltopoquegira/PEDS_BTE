@@ -113,54 +113,55 @@ def load_surrogate_predictor(
     # 4) build a small wrapper around your models.model_utils.predict function
     resolution = int(model_config["resolution"])
 
+    @jax.jit
+    def _predict_jit(x_batch):
+        """
+        x_batch: jnp array of shape (N, 5, 5), dtype float32
+        Returns: (kappa_pred, kappa_var)
+        """
+        out = model_predict(model, x_batch)
+        if isinstance(out, tuple) or isinstance(out, list):
+            kappa_pred, kappa_var = out
+        else:
+            kappa_pred, kappa_var = out, None
+        return kappa_pred, kappa_var
+
+    # Warm-up JIT so first call isn't slow
+    _ = _predict_jit(jnp.zeros((1, resolution, resolution), dtype=jnp.float32))
+
     def predict_surrogate(pores, *, return_var=False):
         """
-        pores: (5,5) or length-25 or batch (n,5,5)
-        return_var: if True and the model returns variance, return (kappa, var)
+        pores: single (5,5) geometry or batch
+        return_var: return variance estimate if available
         """
         x = _ensure_batch_and_dtype(pores, resolution=resolution)
 
-        # model_predict is your project-level predict(...) function used in training/validation.
-        # Its typical uses in your code:
-        #   kappa_pred, kappa_var = predict(model, val_pores)
-        #   kappa_pred, kappa_var = predict(model, val_pores, training=True, ... ) during train
-        # For inference we call predict(model, x) without training flag.
-        try:
-            out = model_predict(model, x)  # call your project predict wrapper
-        except TypeError:
-            # Some predict wrappers require explicit training flag
-            try:
-                out = model_predict(model, x, training=False)
-            except Exception as e:
-                raise RuntimeError(f"Could not call model_predict(...). Original error: {e}")
+        # JIT call
+        kappa_pred, kappa_var = _predict_jit(x)
 
-        # model_predict may return (kappa_pred, kappa_var) or just kappa_pred
-        if isinstance(out, tuple) or isinstance(out, list):
-            kappa_pred = out[0]
-            kappa_var = out[1] if len(out) > 1 else None
-        else:
-            kappa_pred = out
-            kappa_var = None
+        # Move back to numpy
+        kp = np.asarray(jax.device_get(kappa_pred))
+        if kp.ndim > 1 and kp.shape[-1] == 1:
+            kp = kp.reshape(kp.shape[:-1])
 
-        kappa_np = np.asarray(jax.device_get(kappa_pred))
-        # reduce singleton dimensions (e.g., (1,) -> scalar)
-        if kappa_np.ndim > 1 and kappa_np.shape[-1] == 1:
-            kappa_np = kappa_np.reshape(kappa_np.shape[:-1])
-        if kappa_np.size == 1:
-            scalar = float(kappa_np.reshape(-1)[0])
-            if return_var:
-                if kappa_var is None:
-                    return scalar, None
-                var_np = np.asarray(jax.device_get(kappa_var))
-                return scalar, float(var_np.reshape(-1)[0]) if var_np.size == 1 else var_np.reshape(-1)
-            return scalar
-
-        # batch case: return numpy array, optionally with variance
+        # single sample → scalar
+        if kp.size == 1:
+            scalar = float(kp.reshape(-1)[0])
+            if not return_var:
+                return scalar
+            if kappa_var is None:
+                return scalar, None
+            kv = np.asarray(jax.device_get(kappa_var))
+            return scalar, float(kv.reshape(-1)[0])
+        
+        # batch case
         if return_var:
-            var_np = np.asarray(jax.device_get(kappa_var)) if kappa_var is not None else None
-            return kappa_np.reshape(-1), (var_np.reshape(-1) if var_np is not None else None)
+            if kappa_var is None:
+                return kp.reshape(-1), None
+            kv = np.asarray(jax.device_get(kappa_var))
+            return kp.reshape(-1), kv.reshape(-1)
 
-        return kappa_np.reshape(-1)
+        return kp.reshape(-1)
 
     if verbose:
         print(f"[surrogate_utils] Surrogate predictor ready for model '{model_name}' (exp: {exp_name}).")

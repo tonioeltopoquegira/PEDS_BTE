@@ -406,8 +406,8 @@ if __name__ == "__main__":
         "random_seed": 0,
         "sobol_steps": 50,
         # Surrogate choice:
-        "use_surrogate": False,
-        "surrogate_type": "gp",        # "peds" or "gp"
+        "use_surrogate": True,
+        "surrogate_type": "peds",        # "peds" or "gp"
         # If using PEDS, fill these:
         "surrogate_exp_name": "train_300_NEW",
         "surrogate_model_name": "peds_f_ens_uq1",

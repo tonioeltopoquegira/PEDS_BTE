@@ -214,7 +214,7 @@ def main(argv):
         return
 
     # Batch predict (call model directly no jit)
-    batch_size = 128
+    batch_size = 256
     nsel = selected_pores.shape[0]
     kappas_pred = np.full((nsel,), np.nan, dtype=np.float32)
     kappas_var = np.full((nsel,), np.nan, dtype=np.float32)

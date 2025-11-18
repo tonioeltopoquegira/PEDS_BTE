@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+import time
 from numpy import random
 from scipy.optimize import minimize
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -53,7 +54,9 @@ print("GP fitted.  Learned kernel:", gp.kernel_)
 # -----------------------------------------------------------------------------
 # 3) EVALUATE SURROGATE ACCURACY ON HOLD‑OUT TEST SET
 # -----------------------------------------------------------------------------
+t = time.time()
 y_pred, y_std = gp.predict(X_test, return_std=True)
+print(f"Prediction on {len(X_test)} test points took {time.time() - t:.4f} seconds")
 mse = mean_squared_error(y_test, y_pred)
 relative_mse = mse / np.var(y_test)  # relative to variance of y_test
 rmse = np.sqrt(mse)
