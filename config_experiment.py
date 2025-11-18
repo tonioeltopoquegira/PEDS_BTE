@@ -487,8 +487,8 @@ al_300 = {
     "seed": 0,
 
     # Run
-    "training": True,
-    "optimization": False,
+    "training": False,
+    "optimization": True,
     "stop_perc": [0.0],
 
     # Data
@@ -505,7 +505,7 @@ al_300 = {
     "T": [100, 250],
      
     # Training
-    "epochs": 500,
+    "epochs": 400,
     "batch_size": 125,
     "learn_rate_max": 5e-3,
     "learn_rate_min": 5e-4,
@@ -549,7 +549,7 @@ al_500 = {
 
     # Optimization
     "opt": "ga",
-    "stochastic": True
+    "stochastic": False
 }
 
 al_1000 = {
@@ -613,6 +613,270 @@ al_2000 = {
     # Training
     "epochs": 1000,
     "batch_size": 350,
+    "learn_rate_max": 5e-3,
+    "learn_rate_min": 5e-4,
+    "schedule": "cosine-cycles",
+    "loss_beta": 0.5,
+
+    # Optimization
+    "opt": "ga",
+    "stochastic": True
+}
+
+splits_0_1 = {
+    "exp_name": "splits_0_1",
+    "seed": 33,
+
+    # Run
+    "training": True,
+    "optimization": False,
+    "stop_perc": [0.0],
+
+    # Data
+    "train_size": 1000, 
+    "test_size": 1000,
+
+    # Splits
+    "splits": (0, 1), # (a, b)
+
+    # Active Learning
+    "al": False,
+    "dynamic_query": False,
+    "convergence": 0.025, # 0.025
+    "N": 200, # 200
+    "M": 4000,
+    "K": 400, # 400
+    "T": [300, 450], # 300, 450 -> 3.84
+     
+    # Training
+    "epochs": 600,
+    "batch_size": 350,
+    "learn_rate_max": 5e-3,
+    "learn_rate_min": 5e-4,
+    "schedule": "cosine-cycles",
+    "loss_beta": 0.5,
+
+    # Optimization
+    "opt": "ga",
+    "stochastic": True 
+}
+
+splits_0_2 = {
+    "exp_name": "splits_0_2",
+    "seed": 33,
+
+    # Run
+    "training": True,
+    "optimization": False,
+    "stop_perc": [0.0],
+
+    # Data
+    "train_size": 1000, 
+    "test_size": 1000,
+
+    # Splits
+    "splits": (0, 2), # (a, b)
+
+    # Active Learning
+    "al": False,
+    "dynamic_query": False,
+    "convergence": 0.025, # 0.025
+    "N": 200, # 200
+    "M": 4000,
+    "K": 400, # 400
+    "T": [300, 450], # 300, 450 -> 3.84
+     
+    # Training
+    "epochs": 600,
+    "batch_size": 350,
+    "learn_rate_max": 5e-3,
+    "learn_rate_min": 5e-4,
+    "schedule": "cosine-cycles",
+    "loss_beta": 0.5,
+
+    # Optimization
+    "opt": "ga",
+    "stochastic": True 
+}
+
+splits_1_0 = {
+    "exp_name": "splits_1_0",
+    "seed": 33,
+
+    # Run
+    "training": True,
+    "optimization": False,
+    "stop_perc": [0.0],
+
+    # Data
+    "train_size": 1000, 
+    "test_size": 1000,
+
+    # Splits
+    "splits": (1, 0), # (a, b)
+
+    # Active Learning
+    "al": False,
+    "dynamic_query": False,
+    "convergence": 0.025, # 0.025
+    "N": 200, # 200
+    "M": 4000,
+    "K": 400, # 400
+    "T": [300, 450], # 300, 450 -> 3.84
+     
+    # Training
+    "epochs": 600,
+    "batch_size": 350,
+    "learn_rate_max": 5e-3,
+    "learn_rate_min": 5e-4,
+    "schedule": "cosine-cycles",
+    "loss_beta": 0.5,
+
+    # Optimization
+    "opt": "ga",
+    "stochastic": True 
+}
+
+splits_1_2 = {
+    "exp_name": "splits_1_2",
+    "seed": 33,
+
+    # Run
+    "training": True,
+    "optimization": False,
+    "stop_perc": [0.0],
+
+    # Data
+    "train_size": 1000, 
+    "test_size": 1000,
+
+    # Splits
+    "splits": (1, 2), # (a, b)
+
+    # Active Learning
+    "al": False,
+    "dynamic_query": False,
+    "convergence": 0.025, # 0.025
+    "N": 200, # 200
+    "M": 4000,
+    "K": 400, # 400
+    "T": [300, 450], # 300, 450 -> 3.84
+     
+    # Training
+    "epochs": 600,
+    "batch_size": 350,
+    "learn_rate_max": 5e-3,
+    "learn_rate_min": 5e-4,
+    "schedule": "cosine-cycles",
+    "loss_beta": 0.5,
+
+    # Optimization
+    "opt": "ga",
+    "stochastic": True 
+}
+
+splits_2_1 = {
+    "exp_name": "splits_2_1",
+    "seed": 33,
+
+    # Run
+    "training": True,
+    "optimization": False,
+    "stop_perc": [0.0],
+
+    # Data
+    "train_size": 1000, 
+    "test_size": 1000,
+
+    # Splits
+    "splits": (2, 1), # (a, b)
+
+    # Active Learning
+    "al": False,
+    "dynamic_query": False,
+    "convergence": 0.025, # 0.025
+    "N": 200, # 200
+    "M": 4000,
+    "K": 400, # 400
+    "T": [300, 450], # 300, 450 -> 3.84
+     
+    # Training
+    "epochs": 600,
+    "batch_size": 350,
+    "learn_rate_max": 5e-3,
+    "learn_rate_min": 5e-4,
+    "schedule": "cosine-cycles",
+    "loss_beta": 0.5,
+
+    # Optimization
+    "opt": "ga",
+    "stochastic": True 
+}
+
+splits_2_0 = {
+    "exp_name": "splits_2_0",
+    "seed": 33,
+
+    # Run
+    "training": True,
+    "optimization": False,
+    "stop_perc": [0.0],
+
+    # Data
+    "train_size": 1000, 
+    "test_size": 1000,
+
+    # Splits
+    "splits": (2, 0), # (a, b)
+
+    # Active Learning
+    "al": False,
+    "dynamic_query": False,
+    "convergence": 0.025, # 0.025
+    "N": 200, # 200
+    "M": 4000,
+    "K": 400, # 400
+    "T": [300, 450], # 300, 450 -> 3.84
+     
+    # Training
+    "epochs": 600,
+    "batch_size": 350,
+    "learn_rate_max": 5e-3,
+    "learn_rate_min": 5e-4,
+    "schedule": "cosine-cycles",
+    "loss_beta": 0.5,
+
+    # Optimization
+    "opt": "ga",
+    "stochastic": True 
+}
+
+
+opt = {
+    "exp_name": "al_300",
+    "seed": 0,
+
+    # Run
+    "training": False,
+    "optimization": True,
+    "stop_perc": [0.0],
+
+    # Data
+    "train_size": 500, # change to train, test, validation
+    "test_size": 1000,
+
+    # Active Learning
+    "al": False,
+    "dynamic_query": False,
+    "convergence": 0.025, # 0.025
+    "N": 60,
+    "M": 1200,
+    "K": 120,
+    "T": [100, 250],
+     
+    # Training
+    "epochs": 400,
+    "batch_size": 125,
     "learn_rate_max": 5e-3,
     "learn_rate_min": 5e-4,
     "schedule": "cosine-cycles",

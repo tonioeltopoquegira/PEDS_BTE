@@ -1,0 +1,41 @@
+{
+  "exp_name": "train_1000_NEW",
+  "model_name": "peds_fourier",
+  "n_selected": 269,
+  "n_generated": 269,
+  "quantitative": {
+    "mse": 27.861742115820043,
+    "rmse": 5.278422313136762,
+    "mae": 3.1129088442569226
+  },
+  "pca_generated_explained_variance_ratio": [
+    0.8986234664916992,
+    0.0772230252623558
+  ],
+  "pca_pores_25d_explained_variance_ratio": [
+    0.23882324528029797,
+    0.05179106804018938
+  ],
+  "pca_pores_26d_explained_variance_ratio": [
+    0.2634903538502787,
+    0.04988391879607679
+  ],
+  "coeffs_note": "nan_filled_with_mean_0.608361",
+  "coeffs_stats": {
+    "mean": 0.6083613038063049,
+    "min": 0.39615675806999207,
+    "max": 0.9439862370491028,
+    "n_present": 269
+  },
+  "paths": {
+    "pca_generated": "figures/ablation_train_1000_NEW_peds_fourier/pca_generated_conductivity.png",
+    "tsne_generated": "figures/ablation_train_1000_NEW_peds_fourier/tsne_generated_conductivity.png",
+    "kappa_vs_w_scatter": "figures/ablation_train_1000_NEW_peds_fourier/kappa_vs_coefficient_w.png",
+    "pca_pores_25d": "figures/ablation_train_1000_NEW_peds_fourier/pca_pores_25d.png",
+    "pca_pores_26d": "figures/ablation_train_1000_NEW_peds_fourier/pca_pores_26d_with_w.png",
+    "tsne_pores_25d": "figures/ablation_train_1000_NEW_peds_fourier/tsne_pores_25d.png",
+    "tsne_pores_26d": "figures/ablation_train_1000_NEW_peds_fourier/tsne_pores_26d_with_w.png",
+    "qualitative": "figures/ablation_train_1000_NEW_peds_fourier/example_generated_conductivities.png"
+  },
+  "timestamp": "2025-11-18T10:25:37.749026"
+}

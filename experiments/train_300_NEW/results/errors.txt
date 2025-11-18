@@ -1,0 +1,2 @@
+model_name,mse_train,mse_val,val_perc_error,overall_test_perc_error,test_perc_error_<15,test_perc_error_15-40,test_perc_error_>40,test_perc_error_Q1,test_perc_error_Q2,test_perc_error_Q3,test_perc_error_Q4
+peds_ens_fourier_uq1,0.659614,24.306445,7.8048,8.6987,5.3480,8.6661,9.1398,7.5050,8.2009,9.3134,9.7756

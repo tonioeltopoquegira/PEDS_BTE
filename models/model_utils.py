@@ -90,7 +90,7 @@ def predict(model, pores, training=False, **kwargs):
         kappa_mean = jnp.squeeze(model(pores_reshaped, True), -1)
     
     if isinstance(model, PEDS):
-        kappa_mean, kappa_var, conductivity_generated = model(pores, training)
+        kappa_mean, kappa_var, conductivity_generated, w = model(pores, training)
         if training:
             if ((kwargs.get('epoch', 0) + 1 + kwargs.get('n_past_epoch', 0)) % 25 == 0 or kwargs.get('epoch', 0) ==0) and kwargs.get('batch_n', 0) == 0 and kwargs.get('rank', 0) == 0:
                 plot_peds(model, pores, conductivity_res = conductivity_generated, model_name=kwargs.get('model_name'), exp_name=kwargs.get('exp_name'), epoch=kwargs.get('epoch') + 1 + kwargs.get('n_past_epoch'), kappa_predicted=kappa_mean, kappa_target=kwargs.get('kappas'))

@@ -48,12 +48,12 @@ def optimized_conductivity_grid_jax(pores, N):
 def conductivity_grid_5by5(pores, binary=False):
     if binary:
         
-        result = jnp.where(pores, 1e-7, 160)
+        result = jnp.where(pores, 1e-7, 160) 
     else:
         
         result = 160 * (1 - pores)
         #
-        result = jnp.clip(result, 1e-7, 160)
+        result = jnp.clip(result, 1e-7, 160) 
 
     return jnp.reshape(result, (pores.shape[0], 5, 5))
 

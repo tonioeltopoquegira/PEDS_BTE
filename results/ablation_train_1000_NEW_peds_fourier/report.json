@@ -1,0 +1,16 @@
+{
+  "exp_name": "train_1000_NEW",
+  "model_name": "peds_fourier",
+  "timestamp": "2025-09-12T12:44:21.143374",
+  "n_selected": 266,
+  "metrics": {
+    "mean_frac_error": 0.06483812232646814,
+    "std_frac_error": 0.06926796239826286
+  },
+  "chosen_examples_local_idxs": [
+    0,
+    88,
+    177,
+    265
+  ]
+}

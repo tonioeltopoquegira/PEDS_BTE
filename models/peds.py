@@ -93,4 +93,4 @@ class PEDS(nnx.Module):
         if self.uq_method == 1:
             kappa_var = self.varnet(pores, training)
        
-        return kappa, kappa_var, conductivity_generated_raw  # <- return only what the NN generated
+        return kappa, kappa_var, conductivity_generated_raw, w 

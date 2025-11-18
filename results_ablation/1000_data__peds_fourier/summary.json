@@ -1,0 +1,6 @@
+{
+  "exp_name": "1000_data",
+  "model_name": "peds_fourier",
+  "n_targets": 266,
+  "metrics": {}
+}

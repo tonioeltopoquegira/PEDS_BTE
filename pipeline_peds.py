@@ -65,6 +65,7 @@ def main(exp_config, model_config):
             train_size=exp_config["train_size"], 
             test_size=exp_config['test_size'],
             key=rngs,
+            splits=exp_config.get('splits', None),
             seed = exp_config['seed']
         )
         dataset_al = None
@@ -113,6 +114,8 @@ def main(exp_config, model_config):
         pores_truth = jnp.asarray(design_data['pores'], dtype=jnp.float32)
         kappa_target = jnp.asarray(design_data['kappas'], dtype=jnp.float32)
 
+        kappa_target = [12.00, 15.00, 20.00, 30.00, 45.00, 60.00, 75.00, 85.00]
+
         t = time.time()
 
         optimize(
@@ -145,8 +148,9 @@ if __name__ == "__main__":
     basic_1000_train, dataeff_100_train, dataeff_200_train, dataeff_300_train,
     dataeff_500_train, dataeff_2000_train, basic_10000_train,
     earlystop_100, earlystop_200, earlystop_500, earlystop_1000, earlystop_2000,
-    al_100, al_200, al_300, al_500, al_1000, al_2000
-)
+    al_100, al_200, al_300, al_500, al_1000, al_2000,
+    splits_0_1, splits_0_2, splits_1_2, splits_1_0, splits_2_0, splits_2_1, opt
+    )
 
     experiments = {
         "100_data": dataeff_100_train,
@@ -170,8 +174,19 @@ if __name__ == "__main__":
         "al_300": al_300,
         "al_500": al_500,
         "al_1000": al_1000,
-        "al_2000": al_2000
-        
+        "al_2000": al_2000,
+
+        # Split experiments
+        "split_0_1": splits_0_1,
+        "split_0_2": splits_0_2,
+        "split_1_2": splits_1_2,
+        "split_1_0": splits_1_0,
+        "split_2_0": splits_2_0,
+        "split_2_1": splits_2_1,
+
+
+        # opt
+        "opt": opt
     }
     
     models = {
